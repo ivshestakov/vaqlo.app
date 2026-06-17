@@ -1,0 +1,30 @@
+# Проект только для сборки Control Center расширения (само приложение собирается SwiftPM).
+name: VaqloControl
+options:
+  bundleIdPrefix: com.vaqlo
+targets:
+  VaqloControl:
+    type: extensionkit-extension
+    platform: macOS
+    deploymentTarget: "26.0"
+    sources:
+      - ControlExtension
+    entitlements:
+      path: ControlExtension/VaqloControl.entitlements
+      properties:
+        com.apple.security.app-sandbox: true
+        com.apple.security.application-groups:
+          - group.com.vaqlo
+    info:
+      path: ControlExtension/Info.plist
+      properties:
+        CFBundleDisplayName: Vaqlo
+        EXAppExtensionAttributes:
+          EXExtensionPointIdentifier: com.apple.widgetkit-extension
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.vaqlo.recorder.control
+        CODE_SIGN_IDENTITY: "-"
+        CODE_SIGN_STYLE: Manual
+        DEVELOPMENT_TEAM: ""
+        SWIFT_VERSION: "5.10"

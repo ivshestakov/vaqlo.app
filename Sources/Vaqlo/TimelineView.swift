@@ -4,6 +4,7 @@ import SwiftUI
 struct TimelinePane: View {
     @EnvironmentObject var store: AppStore
     @ObservedObject private var loc = LocalizationManager.shared
+    @ObservedObject private var library = AppStore.shared.library
     @Binding var mode: MainView.TimelineMode
     @Binding var anchorDate: Date
     @Binding var selectedSessionID: String?
@@ -90,6 +91,7 @@ struct TimelinePane: View {
 struct DayColumn: View {
     @EnvironmentObject var store: AppStore
     @ObservedObject private var loc = LocalizationManager.shared
+    @ObservedObject private var library = AppStore.shared.library
     let day: Date
     @Binding var selectedSessionID: String?
     let showHourLabels: Bool

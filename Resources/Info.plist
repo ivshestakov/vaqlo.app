@@ -2,42 +2,42 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<key>CFBundleName</key>
-	<string>Vaqlo</string>
 	<key>CFBundleDisplayName</key>
 	<string>Vaqlo</string>
-	<key>CFBundleIdentifier</key>
-	<string>com.vaqlo.recorder</string>
-	<key>CFBundleVersion</key>
-	<string>1</string>
-	<key>CFBundleShortVersionString</key>
-	<string>0.1.0</string>
 	<key>CFBundleExecutable</key>
 	<string>Vaqlo</string>
 	<key>CFBundleIconFile</key>
 	<string>AppIcon</string>
 	<key>CFBundleIconName</key>
 	<string>AppIcon</string>
+	<key>CFBundleIdentifier</key>
+	<string>com.vaqlo.recorder</string>
+	<key>CFBundleName</key>
+	<string>Vaqlo</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>0.1.1</string>
+	<key>CFBundleVersion</key>
+	<string>2</string>
 	<key>LSMinimumSystemVersion</key>
 	<string>15.0</string>
 	<key>LSUIElement</key>
 	<true/>
-	<key>NSHumanReadableCopyright</key>
-	<string>© 2026 Ivan Shestakov. Все права защищены.</string>
-	<key>NSMicrophoneUsageDescription</key>
-	<string>Vaqlo записывает микрофон, чтобы вести локальный транскрипт ваших разговоров.</string>
 	<key>NSAudioCaptureUsageDescription</key>
 	<string>Vaqlo записывает системный звук (звонки, видео, музыку), чтобы вести локальный транскрипт.</string>
 	<key>NSCalendarsFullAccessUsageDescription</key>
 	<string>Vaqlo читает события календаря, чтобы подписать запись названием встречи и участниками.</string>
+	<key>NSHumanReadableCopyright</key>
+	<string>© 2026 Ivan Shestakov. Все права защищены.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Vaqlo записывает микрофон, чтобы вести локальный транскрипт ваших разговоров.</string>
+	<key>SUEnableAutomaticChecks</key>
+	<true/>
 	<key>SUFeedURL</key>
 	<string>https://panic-kit.com/vaqlo/appcast.xml</string>
 	<key>SUPublicEDKey</key>
 	<string>jxJctZXd7IIRthQEe2DyTHYZvNZ4gVv0/kbh4C94pgo=</string>
-	<key>SUEnableAutomaticChecks</key>
-	<true/>
 	<key>SUScheduledCheckInterval</key>
 	<integer>86400</integer>
 </dict>

@@ -3,6 +3,8 @@ import SwiftUI
 struct MainView: View {
     @EnvironmentObject var store: AppStore
     @ObservedObject private var loc = LocalizationManager.shared
+    @ObservedObject private var library = AppStore.shared.library
+    @ObservedObject private var transcriber = AppStore.shared.transcriber
     @State private var selectedSessionID: String?
     @State private var viewMode: TimelineMode = .day
     @State private var anchorDate = Date()
@@ -194,6 +196,7 @@ struct MainView: View {
 struct SearchResultsPane: View {
     @EnvironmentObject var store: AppStore
     @ObservedObject private var loc = LocalizationManager.shared
+    @ObservedObject private var library = AppStore.shared.library
     let query: String
     @Binding var selectedSessionID: String?
 

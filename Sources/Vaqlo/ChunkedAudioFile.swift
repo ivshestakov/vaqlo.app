@@ -22,10 +22,11 @@ final class ChunkedAudioFile {
         var end: Date
     }
 
-    init(directory: URL, prefix: String, processingFormat: AVAudioFormat) {
+    init(directory: URL, prefix: String, processingFormat: AVAudioFormat, startIndex: Int = 0) {
         self.directory = directory
         self.prefix = prefix
         self.processingFormat = processingFormat
+        self.chunkIndex = startIndex
     }
 
     func write(_ buffer: AVAudioPCMBuffer) {

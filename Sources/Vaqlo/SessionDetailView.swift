@@ -4,6 +4,8 @@ import SwiftUI
 struct SessionDetailView: View {
     @EnvironmentObject var store: AppStore
     @ObservedObject private var loc = LocalizationManager.shared
+    @ObservedObject private var transcriber = AppStore.shared.transcriber
+    @ObservedObject private var summarizer = AppStore.shared.summarizer
     let session: Session
     var onDeleted: () -> Void = {}
 

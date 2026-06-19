@@ -77,17 +77,11 @@ final class AppStore: ObservableObject {
             self.summarizer.summarize(session)
         }
 
-        // Вложенные ObservableObject не пробрасывают изменения через @EnvironmentObject(AppStore):
-        // вьюхи подписаны только на AppStore. Републикуем события детей, иначе кнопки
-        // «Скачать»/«Удалить», прогресс и спиннеры не обновляют интерфейс.
-        for child in [library.objectWillChange, models.objectWillChange,
-                      transcriber.objectWillChange, summarizer.objectWillChange,
-                      LocalizationManager.shared.objectWillChange] {
-            child
-                .receive(on: DispatchQueue.main)
-                .sink { [weak self] _ in self?.objectWillChange.send() }
-                .store(in: &cancellables)
-        }
+        // Раньше здесь был «republish-шторм»: любое изменение в дочернем объекте
+        // (прогресс загрузки модели/транскрибации — десятки раз в секунду) перерисовывало
+        // всё окно и роняло SwiftUI/DesignLibrary под нагрузкой. Теперь каждая вьюха
+        // наблюдает нужный ей объект напрямую (@ObservedObject store.models / .transcriber / …),
+        // поэтому высокочастотные изменения перерисовывают только свой маленький фрагмент.
 
         // Минутный тик: расписание транскрибации + ежечасная чистка корзины.
         scheduleTimer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { _ in

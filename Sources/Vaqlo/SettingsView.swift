@@ -487,6 +487,7 @@ private struct EmojiPickerRow: View {
 private struct ModelsSettings: View {
     @ObservedObject private var loc = LocalizationManager.shared
     @EnvironmentObject var store: AppStore
+    @ObservedObject private var models = AppStore.shared.models
     @AppStorage(SettingsKeys.activeModel) private var activeModel = "large-v3-turbo-q5_0"
     @AppStorage(SettingsKeys.activeSummaryModel) private var activeSummaryModel = "qwen3-4b-instruct-q4"
     @AppStorage(SettingsKeys.autoSummarize) private var autoSummarize = false
@@ -520,6 +521,7 @@ private struct ModelsSettings: View {
 private struct ModelRow: View {
     @ObservedObject private var loc = LocalizationManager.shared
     @EnvironmentObject var store: AppStore
+    @ObservedObject private var models = AppStore.shared.models
     let model: any DownloadableModel
     @Binding var active: String
 

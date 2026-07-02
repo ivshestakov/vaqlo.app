@@ -13,6 +13,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     private var cancellables: Set<AnyCancellable> = []
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        CrashGuard.migrateFromLoginItem()
+        let crashedLastTime = CrashGuard.markLaunchDetectingCrash()
+
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         statusItem = item
         if let button = item.button {
@@ -38,6 +41,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         }
 
         updateIcon()
+
+        if crashedLastTime {
+            Notifier.show(title: L("notif.restarted.title"), body: L("notif.restarted.body"))
+        }
 
         if !UserDefaults.standard.bool(forKey: SettingsKeys.onboardingDone) {
             showOnboarding()
@@ -65,6 +72,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
 
     func applicationWillTerminate(_ notification: Notification) {
         AppStore.shared.recorder.stop()
+        CrashGuard.markCleanShutdown()
     }
 
     // Тап по уведомлению / кнопке.

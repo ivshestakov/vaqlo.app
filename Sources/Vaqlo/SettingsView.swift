@@ -203,7 +203,7 @@ private struct GeneralSettings: View {
     @AppStorage(SettingsKeys.meetingDetection) private var meetingDetection = 1
     @AppStorage(SettingsKeys.meetingAutoStop) private var meetingAutoStop = true
     @AppStorage(SettingsKeys.detectSpeakerNames) private var detectSpeakerNames = true
-    @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
+    @State private var launchAtLogin = CrashGuard.isEnabled
     @State private var accessibilityTrusted = AccessibilityHelper.isTrusted
     @State private var calendarAuthorized = CalendarService.isAuthorized
 
@@ -365,13 +365,9 @@ private struct GeneralSettings: View {
                 Toggle(L("set.login"), isOn: $launchAtLogin)
                     .onChange(of: launchAtLogin) {
                         do {
-                            if launchAtLogin {
-                                try SMAppService.mainApp.register()
-                            } else {
-                                try SMAppService.mainApp.unregister()
-                            }
+                            try CrashGuard.setEnabled(launchAtLogin)
                         } catch {
-                            launchAtLogin = SMAppService.mainApp.status == .enabled
+                            launchAtLogin = CrashGuard.isEnabled
                         }
                     }
             }

@@ -28,9 +28,11 @@ xcodebuild -project VaqloControl.xcodeproj -target VaqloControl -configuration R
 
 APP="dist/Vaqlo.app"
 rm -rf "$APP"
-mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources" "$APP/Contents/Extensions"
+mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources" "$APP/Contents/Extensions" \
+         "$APP/Contents/Library/LaunchAgents"
 cp Resources/Info.plist "$APP/Contents/Info.plist"
 cp Resources/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
+cp Resources/com.vaqlo.agent.plist "$APP/Contents/Library/LaunchAgents/com.vaqlo.agent.plist"
 cp .build/release/Vaqlo "$APP/Contents/MacOS/Vaqlo"
 cp "$WHISPER_CLI" "$APP/Contents/Resources/whisper-cli"
 cp "$LLAMA_CLI" "$APP/Contents/Resources/llama-completion"

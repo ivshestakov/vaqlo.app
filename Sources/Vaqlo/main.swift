@@ -1,5 +1,9 @@
 import AppKit
 
+// До создания UI: если включён агент автоперезапуска, а нас запустили мимо
+// launchd — перезапуститься через него (иначе KeepAlive не следит за процессом).
+MainActor.assumeIsolated { CrashGuard.redirectThroughLaunchdIfNeeded() }
+
 let app = NSApplication.shared
 let delegate = MainActor.assumeIsolated { AppDelegate() }
 app.delegate = delegate

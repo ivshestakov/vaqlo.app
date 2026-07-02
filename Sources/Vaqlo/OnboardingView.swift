@@ -9,7 +9,7 @@ struct OnboardingView: View {
 
     @State private var micStatus = AVCaptureDevice.authorizationStatus(for: .audio)
     @State private var notifAuthorized = false
-    @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
+    @State private var launchAtLogin = CrashGuard.isEnabled
     @State private var axTrusted = AccessibilityHelper.isTrusted
     @State private var calAuthorized = CalendarService.isAuthorized
     @State private var refreshTick = 0
@@ -144,15 +144,14 @@ struct OnboardingView: View {
 
     private func toggleLogin() {
         do {
-            if launchAtLogin { try SMAppService.mainApp.unregister() }
-            else { try SMAppService.mainApp.register() }
+            try CrashGuard.setEnabled(!launchAtLogin)
         } catch { NSLog("login toggle: \(error)") }
-        launchAtLogin = SMAppService.mainApp.status == .enabled
+        launchAtLogin = CrashGuard.isEnabled
     }
 
     private func refreshStatuses() {
         micStatus = AVCaptureDevice.authorizationStatus(for: .audio)
-        launchAtLogin = SMAppService.mainApp.status == .enabled
+        launchAtLogin = CrashGuard.isEnabled
         axTrusted = AccessibilityHelper.isTrusted
         calAuthorized = CalendarService.isAuthorized
         Task { await checkNotifications() }

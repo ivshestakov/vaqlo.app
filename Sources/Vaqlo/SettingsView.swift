@@ -2,7 +2,6 @@ import ServiceManagement
 import SwiftUI
 
 struct SettingsView: View {
-    @ObservedObject private var loc = LocalizationManager.shared
 
     var body: some View {
         TabView {
@@ -22,7 +21,6 @@ struct SettingsView: View {
 // MARK: - Приложения-триггеры
 
 private struct TriggerAppsList: View {
-    @ObservedObject private var loc = LocalizationManager.shared
     @State private var apps: [TriggerApp] = []
 
     var body: some View {
@@ -75,7 +73,6 @@ private struct TriggerAppsList: View {
 // MARK: - Голоса
 
 private struct VoicesSettings: View {
-    @ObservedObject private var loc = LocalizationManager.shared
     @State private var voices: [VoiceLibrary.Entry] = []
     @State private var renaming: VoiceLibrary.Entry?
     @State private var newName = ""
@@ -147,7 +144,6 @@ extension VoiceLibrary.Entry: Identifiable {
 // MARK: - Хранилище и статистика
 
 private struct StorageSettings: View {
-    @ObservedObject private var loc = LocalizationManager.shared
     @EnvironmentObject var store: AppStore
     @State private var stats = VaqloStats()
 
@@ -194,7 +190,6 @@ private struct StorageSettings: View {
 }
 
 private struct GeneralSettings: View {
-    @ObservedObject private var loc = LocalizationManager.shared
     @EnvironmentObject var store: AppStore
     @AppStorage(SettingsKeys.scheduleMode) private var scheduleMode = 0
     @AppStorage(SettingsKeys.scheduleIntervalHours) private var intervalHours = 4
@@ -403,7 +398,6 @@ private struct GeneralSettings: View {
 // MARK: - Хоткей
 
 private struct HotkeyRecorderRow: View {
-    @ObservedObject private var loc = LocalizationManager.shared
     @EnvironmentObject var store: AppStore
     @State private var capturing = false
     @State private var monitor: Any?
@@ -454,7 +448,6 @@ private struct HotkeyRecorderRow: View {
 // MARK: - Эмодзи
 
 private struct EmojiPickerRow: View {
-    @ObservedObject private var loc = LocalizationManager.shared
     let title: String
     @Binding var selection: String
 
@@ -485,7 +478,6 @@ private struct EmojiPickerRow: View {
 // MARK: - Модели
 
 private struct ModelsSettings: View {
-    @ObservedObject private var loc = LocalizationManager.shared
     @EnvironmentObject var store: AppStore
     @ObservedObject private var models = AppStore.shared.models
     @AppStorage(SettingsKeys.activeModel) private var activeModel = "large-v3-turbo-q5_0"
@@ -519,7 +511,6 @@ private struct ModelsSettings: View {
 }
 
 private struct ModelRow: View {
-    @ObservedObject private var loc = LocalizationManager.shared
     @EnvironmentObject var store: AppStore
     @ObservedObject private var models = AppStore.shared.models
     let model: any DownloadableModel
@@ -580,7 +571,6 @@ private struct ModelRow: View {
 
 /// CoreML-модели диаризации скачиваются автоматически — здесь только статус и очистка.
 private struct VoiceModelsRow: View {
-    @ObservedObject private var loc = LocalizationManager.shared
     @State private var sizeMB: Int?
 
     private var modelsDir: URL {

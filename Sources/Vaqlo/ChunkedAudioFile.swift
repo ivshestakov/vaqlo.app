@@ -14,6 +14,7 @@ final class ChunkedAudioFile {
     private var file: AVAudioFile?
     private var chunkIndex = 0
     private var chunkStart = Date()
+    private var closed = false
     private(set) var chunks: [ChunkInfo] = []
 
     struct ChunkInfo: Codable {
@@ -32,6 +33,9 @@ final class ChunkedAudioFile {
     func write(_ buffer: AVAudioPCMBuffer) {
         lock.lock()
         defer { lock.unlock() }
+        // После close() писать нельзя: аудио-колбэк может пережить остановку
+        // (teardown Core Audio не гарантирован) — иначе файл «воскреснет».
+        guard !closed else { return }
         do {
             if file == nil || Date().timeIntervalSince(chunkStart) >= Self.chunkDuration {
                 try rotate()
@@ -54,6 +58,7 @@ final class ChunkedAudioFile {
         defer { lock.unlock() }
         finishCurrentChunk()
         file = nil
+        closed = true
     }
 
     private func rotate() throws {

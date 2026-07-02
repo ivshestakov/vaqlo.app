@@ -22,9 +22,9 @@ enum TranscriptSearch {
                   let lines = try? decoder.decode([TranscriptLine].self, from: data) else { continue }
 
             let matches = lines.filter { $0.text.lowercased().contains(query) }
-            guard !matches.isEmpty else { continue }
+            guard let firstMatch = matches.first else { continue }
 
-            let snippet = makeSnippet(matches.first!.text, query: query)
+            let snippet = makeSnippet(firstMatch.text, query: query)
             results.append(Result(
                 sessionID: session.id,
                 start: session.start,
@@ -37,8 +37,9 @@ enum TranscriptSearch {
 
     /// Кусок текста вокруг первого совпадения.
     private static func makeSnippet(_ text: String, query: String) -> String {
-        let lower = text.lowercased()
-        guard let range = lower.range(of: query) else { return String(text.prefix(120)) }
+        // Ищем по оригинальной строке: индексы из lowercased-копии к ней неприменимы
+        // (lowercasing может менять число символов).
+        guard let range = text.range(of: query, options: .caseInsensitive) else { return String(text.prefix(120)) }
         let start = text.index(range.lowerBound, offsetBy: -40, limitedBy: text.startIndex) ?? text.startIndex
         let end = text.index(range.upperBound, offsetBy: 80, limitedBy: text.endIndex) ?? text.endIndex
         var snippet = String(text[start..<end])

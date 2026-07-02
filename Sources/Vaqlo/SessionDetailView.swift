@@ -3,7 +3,6 @@ import SwiftUI
 /// Правая панель: развёрнутая информация о сессии, транскрипт, действия.
 struct SessionDetailView: View {
     @EnvironmentObject var store: AppStore
-    @ObservedObject private var loc = LocalizationManager.shared
     @ObservedObject private var transcriber = AppStore.shared.transcriber
     @ObservedObject private var summarizer = AppStore.shared.summarizer
     let session: Session
@@ -503,7 +502,6 @@ struct SessionDetailView: View {
 
 /// Диалог переименования спикера.
 struct RenameSpeakerSheet: View {
-    @ObservedObject private var loc = LocalizationManager.shared
     let target: SessionDetailView.RenameTarget
     let onSave: (String) -> Void
     @Environment(\.dismiss) private var dismiss

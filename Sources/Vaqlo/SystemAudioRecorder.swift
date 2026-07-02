@@ -90,19 +90,26 @@ final class SystemAudioRecorder {
     }
 
     private func cleanup() {
+        // Закрываем sink первым: даже если teardown Core Audio ниже частично
+        // провалится и IOProc продолжит дёргаться, писать на диск он уже не сможет.
+        sink?.close()
+        var status: OSStatus
         if let ioProcID, aggregateID != kAudioObjectUnknown {
-            AudioDeviceStop(aggregateID, ioProcID)
-            AudioDeviceDestroyIOProcID(aggregateID, ioProcID)
+            status = AudioDeviceStop(aggregateID, ioProcID)
+            if status != noErr { NSLog("SystemAudioRecorder: AudioDeviceStop failed (OSStatus \(status))") }
+            status = AudioDeviceDestroyIOProcID(aggregateID, ioProcID)
+            if status != noErr { NSLog("SystemAudioRecorder: AudioDeviceDestroyIOProcID failed (OSStatus \(status))") }
         }
         ioProcID = nil
         if aggregateID != kAudioObjectUnknown {
-            AudioHardwareDestroyAggregateDevice(aggregateID)
+            status = AudioHardwareDestroyAggregateDevice(aggregateID)
+            if status != noErr { NSLog("SystemAudioRecorder: AudioHardwareDestroyAggregateDevice failed (OSStatus \(status))") }
             aggregateID = kAudioObjectUnknown
         }
         if tapID != kAudioObjectUnknown {
-            AudioHardwareDestroyProcessTap(tapID)
+            status = AudioHardwareDestroyProcessTap(tapID)
+            if status != noErr { NSLog("SystemAudioRecorder: AudioHardwareDestroyProcessTap failed (OSStatus \(status))") }
             tapID = kAudioObjectUnknown
         }
-        sink?.close()
     }
 }

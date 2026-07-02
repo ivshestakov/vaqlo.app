@@ -6,15 +6,16 @@ import UserNotifications
 /// Menu bar иконка (левый клик — окно, правый — меню), окна приложения, хоткей.
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDelegate {
-    private var statusItem: NSStatusItem!
+    private var statusItem: NSStatusItem?
     private var mainWindow: NSWindow?
     private var settingsWindow: NSWindow?
     private var onboardingWindow: NSWindow?
     private var cancellables: Set<AnyCancellable> = []
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-        if let button = statusItem.button {
+        let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+        statusItem = item
+        if let button = item.button {
             button.target = self
             button.action = #selector(statusItemClicked)
             button.sendAction(on: [.leftMouseUp, .rightMouseUp])
@@ -45,10 +46,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
 
     func showOnboarding() {
         if onboardingWindow == nil {
-            let hosting = NSHostingController(rootView: OnboardingView(onClose: { [weak self] in
-                UserDefaults.standard.set(true, forKey: SettingsKeys.onboardingDone)
-                self?.onboardingWindow?.close()
-            }))
+            let hosting = NSHostingController(rootView: LocalizedRoot {
+                OnboardingView(onClose: { [weak self] in
+                    UserDefaults.standard.set(true, forKey: SettingsKeys.onboardingDone)
+                    self?.onboardingWindow?.close()
+                })
+            })
             let window = NSWindow(contentViewController: hosting)
             window.title = "Vaqlo"
             window.styleMask = [.titled, .closable]
@@ -96,14 +99,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         let key = AppStore.shared.isRecording ? SettingsKeys.recordingEmoji : SettingsKeys.idleEmoji
         let emoji = defaults.string(forKey: key)?.trimmingCharacters(in: .whitespaces) ?? ""
         if emoji.isEmpty {
-            statusItem.button?.title = ""
-            statusItem.button?.image = NSImage(
+            statusItem?.button?.title = ""
+            statusItem?.button?.image = NSImage(
                 systemSymbolName: AppStore.shared.isRecording ? "record.circle.fill" : "record.circle",
                 accessibilityDescription: "Vaqlo"
             )
         } else {
-            statusItem.button?.image = nil
-            statusItem.button?.title = emoji
+            statusItem?.button?.image = nil
+            statusItem?.button?.title = emoji
         }
     }
 
@@ -162,9 +165,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
 
         // Трюк: временно вешаем меню и кликаем — иконка показывает меню, затем снимаем,
         // чтобы левый клик продолжил открывать окно.
-        statusItem.menu = menu
-        statusItem.button?.performClick(nil)
-        statusItem.menu = nil
+        statusItem?.menu = menu
+        statusItem?.button?.performClick(nil)
+        statusItem?.menu = nil
     }
 
     @objc private func toggleRecording() { AppStore.shared.toggleRecording() }
@@ -181,7 +184,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
 
     func showMainWindow() {
         if mainWindow == nil {
-            let hosting = NSHostingController(rootView: MainView().environmentObject(AppStore.shared))
+            let hosting = NSHostingController(rootView: LocalizedRoot {
+                MainView().environmentObject(AppStore.shared)
+            })
             let window = NSWindow(contentViewController: hosting)
             window.title = "Vaqlo"
             window.setContentSize(NSSize(width: 960, height: 660))
@@ -197,7 +202,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
 
     func showSettingsWindow() {
         if settingsWindow == nil {
-            let hosting = NSHostingController(rootView: SettingsView().environmentObject(AppStore.shared))
+            let hosting = NSHostingController(rootView: LocalizedRoot {
+                SettingsView().environmentObject(AppStore.shared)
+            })
             let window = NSWindow(contentViewController: hosting)
             window.title = L("set.title")
             window.styleMask = [.titled, .closable]

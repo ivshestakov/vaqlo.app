@@ -28,12 +28,18 @@ final class RecordingController {
         do {
             try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
             try system.start(directory: dir)
-            try mic.start(directory: dir)
         } catch {
             _ = system.stop()
-            _ = mic.stop()
             showError(error)
             return
+        }
+
+        // Микрофон недоступен (смена аудио-устройства, вход занят) — сессию не бросаем:
+        // системный звук уже пишется, а MicRecorder продолжит поднимать вход watchdog-ом.
+        do {
+            try mic.start(directory: dir)
+        } catch {
+            NSLog("RecordingController: микрофон не стартовал (\(error.localizedDescription)) — пишем системный звук, mic поднимет watchdog")
         }
 
         appSampler.start()

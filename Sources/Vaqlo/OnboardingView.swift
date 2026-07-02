@@ -7,7 +7,6 @@ import UserNotifications
 struct OnboardingView: View {
     var onClose: () -> Void
 
-    @ObservedObject private var loc = LocalizationManager.shared
     @State private var micStatus = AVCaptureDevice.authorizationStatus(for: .audio)
     @State private var notifAuthorized = false
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled

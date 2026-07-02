@@ -3,7 +3,6 @@ import SwiftUI
 /// Левая панель: переключатель день/неделя, навигация по датам, шкала с блоками сессий.
 struct TimelinePane: View {
     @EnvironmentObject var store: AppStore
-    @ObservedObject private var loc = LocalizationManager.shared
     @ObservedObject private var library = AppStore.shared.library
     @Binding var mode: MainView.TimelineMode
     @Binding var anchorDate: Date
@@ -90,7 +89,6 @@ struct TimelinePane: View {
 /// Вертикальная шкала 00–24 одного дня с блоками сессий.
 struct DayColumn: View {
     @EnvironmentObject var store: AppStore
-    @ObservedObject private var loc = LocalizationManager.shared
     @ObservedObject private var library = AppStore.shared.library
     let day: Date
     @Binding var selectedSessionID: String?

@@ -15,12 +15,21 @@ final class MicRecorder {
     private var watchdog: Timer?
     private var running = false
     private var lastBufferAt = Date()
+    /// Время последнего реального аудио-буфера от микрофона (не сбрасывается перезапусками).
+    private var lastRealBufferAt: Date?
+    private var startedAt = Date()
+    private var notifiedSilence = false
     private let bufferLock = NSLock()
 
+    /// Бросает, только если микрофон недоступен прямо сейчас, — но recovery-механика
+    /// (config-change observer + watchdog) уже установлена, так что при живой сессии
+    /// вход продолжит подниматься сам, когда микрофон вернётся.
     func start(directory: URL) throws {
         self.directory = directory
         collected = []
-        try setup()  // первичная установка; бросает, если микрофон недоступен
+        startedAt = Date()
+        lastRealBufferAt = nil
+        notifiedSilence = false
         running = true
 
         // Смена аудио-конфигурации (маршрут/устройство/частота) останавливает движок.
@@ -41,12 +50,33 @@ final class MicRecorder {
                         self.reconfigure(reason: self.engine.isRunning ? "no mic buffers" : "engine stopped")
                     }
                 }
+                self.notifyIfSilent()
             }
+        }
+
+        try setup()
+    }
+
+    /// Микрофон не дал ни одного буфера >30 с (перезапуски не помогают) —
+    /// сказать пользователю один раз за сессию: молчаливая потеря дорожки хуже.
+    private func notifyIfSilent() {
+        guard !notifiedSilence else { return }
+        bufferLock.lock()
+        let silentFor = Date().timeIntervalSince(lastRealBufferAt ?? startedAt)
+        bufferLock.unlock()
+        if silentFor > 30 {
+            notifiedSilence = true
+            NSLog("MicRecorder: нет буферов от микрофона \(Int(silentFor)) с — уведомляем")
+            Notifier.show(title: L("notif.micDown.title"), body: L("notif.micDown.body"))
         }
     }
 
     private func noteBuffer() {
         bufferLock.lock(); lastBufferAt = Date(); bufferLock.unlock()
+    }
+
+    private func noteRealBuffer() {
+        bufferLock.lock(); lastBufferAt = Date(); lastRealBufferAt = lastBufferAt; bufferLock.unlock()
     }
 
     private func secondsSinceLastBuffer() -> TimeInterval {
@@ -66,7 +96,7 @@ final class MicRecorder {
         self.sink = sink
         input.removeTap(onBus: 0)
         input.installTap(onBus: 0, bufferSize: 4096, format: format) { [weak self] buffer, _ in
-            self?.noteBuffer()
+            self?.noteRealBuffer()
             sink.write(buffer)
         }
         engine.prepare()

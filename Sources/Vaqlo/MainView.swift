@@ -2,7 +2,6 @@ import SwiftUI
 
 struct MainView: View {
     @EnvironmentObject var store: AppStore
-    @ObservedObject private var loc = LocalizationManager.shared
     @ObservedObject private var library = AppStore.shared.library
     @ObservedObject private var transcriber = AppStore.shared.transcriber
     @State private var selectedSessionID: String?
@@ -195,7 +194,6 @@ struct MainView: View {
 /// Левая панель в режиме поиска: результаты по всем транскриптам.
 struct SearchResultsPane: View {
     @EnvironmentObject var store: AppStore
-    @ObservedObject private var loc = LocalizationManager.shared
     @ObservedObject private var library = AppStore.shared.library
     let query: String
     @Binding var selectedSessionID: String?

@@ -3,7 +3,6 @@ import SwiftUI
 /// Корзина: что лежит, когда удалится само, восстановить / удалить / очистить.
 struct TrashView: View {
     @EnvironmentObject var store: AppStore
-    @ObservedObject private var loc = LocalizationManager.shared
     @Environment(\.dismiss) private var dismiss
 
     @State private var entries: [TrashEntry] = []

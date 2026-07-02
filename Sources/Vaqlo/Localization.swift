@@ -70,6 +70,20 @@ final class LocalizationManager: ObservableObject {
     }
 }
 
+/// Единственная точка ре-рендера при смене языка: пересоздаёт поддерево через `.id`,
+/// когда меняется сохранённый язык. Язык читается из UserDefaults (@AppStorage) —
+/// наблюдения @MainActor-ObservableObject из вьюх нет вовсе: массовое
+/// `@ObservedObject LocalizationManager.shared` в каждой вьюхе ломало
+/// executor-проверку SwiftUI (краши swift_task_isCurrentExecutor в DynamicBody).
+struct LocalizedRoot<Content: View>: View {
+    @AppStorage(SettingsKeys.appLanguage) private var languageRaw = ""
+    private let content: () -> Content
+    init(@ViewBuilder content: @escaping () -> Content) { self.content = content }
+    var body: some View {
+        content().id(languageRaw)
+    }
+}
+
 /// Глобальный хелпер. `L("key")` или `L("key", arg1, arg2)` для строк с %@/%d.
 /// Читает язык из снимка — работает на любом потоке.
 func L(_ key: String, _ args: CVarArg...) -> String {
@@ -466,6 +480,8 @@ enum Strings {
         "notif.record": t("Записати", "Record", "Enregistrer", "Grabar", "Gravar", "Aufnehmen", "Registra"),
         "notif.auto.title": t("Vaqlo записує зустріч", "Vaqlo is recording the meeting", "Vaqlo enregistre la réunion", "Vaqlo está grabando la reunión", "O Vaqlo está a gravar a reunião", "Vaqlo nimmt das Meeting auf", "Vaqlo sta registrando la riunione"),
         "notif.auto.body": t("%@ використовує мікрофон — запис почався автоматично.", "%@ is using the microphone — recording started automatically.", "%@ utilise le micro — l’enregistrement a démarré automatiquement.", "%@ está usando el micrófono: la grabación empezó automáticamente.", "%@ está a usar o microfone — a gravação começou automaticamente.", "%@ verwendet das Mikrofon — die Aufnahme startete automatisch.", "%@ sta usando il microfono — la registrazione è partita automaticamente."),
+        "notif.micDown.title": t("Мікрофон не записується", "Microphone isn’t recording", "Le micro n’enregistre pas", "El micrófono no está grabando", "O microfone não está a gravar", "Das Mikrofon nimmt nicht auf", "Il microfono non sta registrando"),
+        "notif.micDown.body": t("Vaqlo не отримує звук з мікрофона. Системний звук записується; перевірте вхідний пристрій у Системних налаштуваннях → Звук.", "Vaqlo is getting no audio from the microphone. System audio is still recording; check the input device in System Settings → Sound.", "Vaqlo ne reçoit aucun son du micro. Le son système est toujours enregistré ; vérifiez l’entrée dans Réglages Système → Son.", "Vaqlo no recibe audio del micrófono. El audio del sistema se sigue grabando; revisa la entrada en Ajustes del Sistema → Sonido.", "O Vaqlo não recebe áudio do microfone. O áudio do sistema continua a ser gravado; verifique a entrada em Definições do Sistema → Som.", "Vaqlo empfängt kein Audio vom Mikrofon. Systemaudio wird weiter aufgenommen; prüfe das Eingabegerät in Systemeinstellungen → Ton.", "Vaqlo non riceve audio dal microfono. L’audio di sistema continua a essere registrato; controlla l’ingresso in Impostazioni di Sistema → Suono."),
 
         // — Ошибки —
         "err.title": t("Помилка", "Error", "Erreur", "Error", "Erro", "Fehler", "Errore"),

@@ -56,7 +56,7 @@ struct SessionMetadata: Codable {
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         encoder.dateEncodingStrategy = .iso8601
         do {
-            try encoder.encode(self).write(to: url)
+            try encoder.encode(self).write(to: url, options: .atomic)
         } catch {
             NSLog("SessionMetadata write failed: \(error)")
         }

@@ -1,4 +1,5 @@
 import AVFoundation
+import ObjCExceptionCatcher
 
 /// Запись микрофона через AVAudioEngine в чанки AAC.
 /// Устойчива к смене аудио-маршрута/устройства во время звонка: AVAudioEngine при этом
@@ -94,13 +95,21 @@ final class MicRecorder {
         let sink = ChunkedAudioFile(directory: directory, prefix: "mic",
                                     processingFormat: format, startIndex: collected.count)
         self.sink = sink
-        input.removeTap(onBus: 0)
-        input.installTap(onBus: 0, bufferSize: 4096, format: format) { [weak self] buffer, _ in
-            self?.noteRealBuffer()
-            sink.write(buffer)
+        // installTap/start бросают ObjC NSException, если формат входа успел стать
+        // невалидным между проверкой выше и установкой (гонка со сменой устройства).
+        // Swift NSException не ловит — без шима это abort всего процесса.
+        var startError: Error?
+        let objcError = VQCatchObjCException {
+            input.removeTap(onBus: 0)
+            input.installTap(onBus: 0, bufferSize: 4096, format: format) { [weak self] buffer, _ in
+                self?.noteRealBuffer()
+                sink.write(buffer)
+            }
+            self.engine.prepare()
+            do { try self.engine.start() } catch { startError = error }
         }
-        engine.prepare()
-        try engine.start()
+        if let objcError { throw VaqloError(objcError.localizedDescription) }
+        if let startError { throw VaqloError(startError.localizedDescription) }
         noteBuffer()  // сбрасываем таймер, чтобы watchdog не сработал сразу
     }
 
@@ -108,8 +117,12 @@ final class MicRecorder {
     private func reconfigure(reason: String) {
         guard running else { return }
         NSLog("MicRecorder: перезапуск (\(reason))")
-        engine.inputNode.removeTap(onBus: 0)
-        if engine.isRunning { engine.stop() }
+        if let error = VQCatchObjCException({
+            self.engine.inputNode.removeTap(onBus: 0)
+            if self.engine.isRunning { self.engine.stop() }
+        }) {
+            NSLog("MicRecorder: исключение при остановке движка (\(error.localizedDescription))")
+        }
         if let sink {
             sink.close()
             collected += sink.chunks
@@ -131,8 +144,12 @@ final class MicRecorder {
         if let observer { NotificationCenter.default.removeObserver(observer); self.observer = nil }
         DispatchQueue.main.async { self.watchdog?.invalidate(); self.watchdog = nil }
         return queue.sync {
-            engine.inputNode.removeTap(onBus: 0)
-            if engine.isRunning { engine.stop() }
+            if let error = VQCatchObjCException({
+                self.engine.inputNode.removeTap(onBus: 0)
+                if self.engine.isRunning { self.engine.stop() }
+            }) {
+                NSLog("MicRecorder: исключение при остановке движка (\(error.localizedDescription))")
+            }
             sink?.close()
             let all = collected + (sink?.chunks ?? [])
             sink = nil

@@ -13,7 +13,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     private var cancellables: Set<AnyCancellable> = []
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        CrashGuard.migrateFromLoginItem()
         let crashedLastTime = CrashGuard.markLaunchDetectingCrash()
 
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)

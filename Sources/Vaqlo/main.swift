@@ -1,8 +1,13 @@
 import AppKit
 
-// До создания UI: если включён агент автоперезапуска, а нас запустили мимо
-// launchd — перезапуститься через него (иначе KeepAlive не следит за процессом).
-MainActor.assumeIsolated { CrashGuard.redirectThroughLaunchdIfNeeded() }
+// До создания UI: миграция login item → агент строго ПЕРЕД редиректом, иначе
+// регистрация агента (RunAtLoad) поднимет вторую копию рядом с текущей.
+// Затем: если агент включён, а нас запустили мимо launchd — перезапуститься
+// через него (иначе KeepAlive не следит за процессом).
+MainActor.assumeIsolated {
+    CrashGuard.migrateFromLoginItem()
+    CrashGuard.redirectThroughLaunchdIfNeeded()
+}
 
 let app = NSApplication.shared
 let delegate = MainActor.assumeIsolated { AppDelegate() }

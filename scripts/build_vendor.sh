@@ -16,8 +16,12 @@ fi
 if [[ ! -x vendor/llama.cpp/build/bin/llama-completion ]]; then
     echo "▸ llama.cpp"
     [[ -d vendor/llama.cpp ]] || git clone --depth 1 https://github.com/ggml-org/llama.cpp vendor/llama.cpp
+    # LLAMA_OPENSSL=OFF обязателен: иначе бинарь линкуется с Homebrew-овским
+    # libssl, который hardened runtime не загрузит (чужой Team ID) — саммари
+    # молча падает с dyld-ошибкой в подписанных сборках.
     cmake -S vendor/llama.cpp -B vendor/llama.cpp/build -DCMAKE_BUILD_TYPE=Release \
-        -DBUILD_SHARED_LIBS=OFF -DGGML_METAL_EMBED_LIBRARY=ON -DLLAMA_CURL=OFF -DLLAMA_BUILD_TESTS=OFF
+        -DBUILD_SHARED_LIBS=OFF -DGGML_METAL_EMBED_LIBRARY=ON \
+        -DLLAMA_CURL=OFF -DLLAMA_OPENSSL=OFF -DLLAMA_BUILD_TESTS=OFF
     cmake --build vendor/llama.cpp/build -j8 --target llama-completion
 fi
 

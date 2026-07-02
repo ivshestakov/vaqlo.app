@@ -117,6 +117,7 @@ private struct SummaryJob {
         process.arguments = [
             "-m", modelFile.path,
             "--jinja",
+            "-st",  // один ход и выход: без этого свежий llama.cpp ждёт диалога и выдаёт пустоту
             "-sys", system,
             "-p", prompt,
             "-n", "1024",

@@ -34,7 +34,21 @@ SKIP_NOTARIZE=1 scripts/release.sh # быстрая локальная пров�
 Результат: `recorder/dist/Vaqlo-<версия>.dmg` — подписан, нотаризован, застейплен.
 Проверка: `spctl -a -vvv recorder/dist/Vaqlo.app` должно дать `accepted / Notarized Developer ID`.
 
-Версия берётся из `CFBundleShortVersionString` в `Resources/Info.plist` — поднимайте её перед релизом.
+Версия берётся из `CFBundleShortVersionString` в `Resources/Info.plist` — поднимайте её перед релизом
+(и `CFBundleVersion` — это `sparkle:version`, должен расти).
+
+## Публикация новой версии (чеклист)
+
+1. Поднять версии в `Resources/Info.plist` (см. выше).
+2. `scripts/release.sh` — соберёт, нотаризует, застейплит и **напечатает готовый `<item>` для appcast**.
+3. `gh release create v<ver> dist/Vaqlo-<ver>.dmg dist/Vaqlo.dmg -R ivshestakov/vaqlo.app`
+   (две копии: версионная — её тянет Sparkle, `Vaqlo.dmg` — для стабильной latest-ссылки).
+4. Вставить `<item>` вверх `vaqlo/appcast.xml` в репо `ivshestakov/panic-kit`, обновить версию
+   на странице, commit+push (сайт деплоится автоматически).
+5. **Homebrew** — обязательный шаг, каждая версия должна ставиться через brew: в
+   `github.com/ivshestakov/homebrew-tap` поднять `version` и `sha256`
+   (`shasum -a 256 dist/Vaqlo-<ver>.dmg`) в `Casks/vaqlo.rb`, commit+push.
+   Проверка: `brew livecheck --cask ivshestakov/tap/vaqlo` и `brew fetch --cask ivshestakov/tap/vaqlo`.
 
 ## На сайт
 
@@ -43,8 +57,8 @@ SKIP_NOTARIZE=1 scripts/release.sh # быстрая локальная пров�
   всё хранится локально, ничего не уходит в облако; упомянуть ответственность за согласие собеседников.
 - Указать лицензии: whisper.cpp / FluidAudio — MIT/Apache; модели Llama 3.2 и Qwen3 скачиваются
   пользователем с HuggingFace (мы их не распространяем) и имеют собственные лицензии.
-- **Авто-обновления** (опционально, но ожидаемо): Sparkle + `appcast.xml` на сайте + EdDSA-подпись
-  апдейтов. Тогда пользователи получают новые версии без ручного перекачивания DMG.
+- **Авто-обновления**: настроены — Sparkle, фид `panic-kit.com/vaqlo/appcast.xml`, EdDSA-подпись
+  апдейтов (ключ в keychain, общий со Skald).
 
 ## Иконка
 

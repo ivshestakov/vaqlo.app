@@ -6,7 +6,13 @@ import ObjCExceptionCatcher
 /// останавливается (config-change) и сам не возобновляется — мы перезапускаем его,
 /// плюс watchdog поднимает движок, если он встал по любой причине (прерывание и т.п.).
 final class MicRecorder {
-    private let engine = AVAudioEngine()
+    /// Пересоздаётся на каждый setup(): AVAudioEngine на macOS кэширует формат входа,
+    /// снятый при создании узла, и НЕ обновляет его при смене частоты железа. Когда
+    /// Bluetooth-гарнитура уходит в HFP (48 000 → 16 000 Гц), у старого экземпляра
+    /// `inputNode.outputFormat` навсегда остаётся 48 кГц, и `engine.start()` падает
+    /// с «Format mismatch» на каждой попытке watchdog-а — микрофон не поднимается
+    /// до конца встречи. Лечится только новым экземпляром движка.
+    private var engine = AVAudioEngine()
     private let queue = DispatchQueue(label: "vaqlo.mic")
 
     private var sink: ChunkedAudioFile?
@@ -33,40 +39,35 @@ final class MicRecorder {
         notifiedSilence = false
         running = true
 
-        // Смена аудио-конфигурации (маршрут/устройство/частота) останавливает движок.
-        observer = NotificationCenter.default.addObserver(
-            forName: .AVAudioEngineConfigurationChange, object: engine, queue: nil
-        ) { [weak self] _ in
-            self?.queue.async { self?.reconfigure(reason: "config change") }
-        }
-
         // Watchdog: ловим и «движок встал», и «движок работает, но буферов нет»
         // (микрофон забрал другой процесс / увело вход во время звонка).
+        // Проверка идёт на queue: там же живёт engine, менять его из двух потоков нельзя.
         DispatchQueue.main.async {
             self.watchdog = Timer.scheduledTimer(withTimeInterval: 3, repeats: true) { [weak self] _ in
                 guard let self, self.running else { return }
-                let stalled = !self.engine.isRunning || self.secondsSinceLastBuffer() > 4
-                if stalled {
-                    self.queue.async {
-                        self.reconfigure(reason: self.engine.isRunning ? "no mic buffers" : "engine stopped")
+                self.queue.async {
+                    guard self.running else { return }
+                    let alive = self.engine.isRunning
+                    if !alive || self.secondsSinceLastBuffer() > 4 {
+                        self.reconfigure(reason: alive ? "no mic buffers" : "engine stopped")
                     }
                 }
                 self.notifyIfSilent()
             }
         }
 
-        try setup()
+        try queue.sync { try setup() }
     }
 
     /// Микрофон не дал ни одного буфера >30 с (перезапуски не помогают) —
     /// сказать пользователю один раз за сессию: молчаливая потеря дорожки хуже.
     private func notifyIfSilent() {
-        guard !notifiedSilence else { return }
         bufferLock.lock()
         let silentFor = Date().timeIntervalSince(lastRealBufferAt ?? startedAt)
+        let shouldNotify = !notifiedSilence && silentFor > 30
+        if shouldNotify { notifiedSilence = true }
         bufferLock.unlock()
-        if silentFor > 30 {
-            notifiedSilence = true
+        if shouldNotify {
             NSLog("MicRecorder: нет буферов от микрофона \(Int(silentFor)) с — уведомляем")
             Notifier.show(title: L("notif.micDown.title"), body: L("notif.micDown.body"))
         }
@@ -77,7 +78,13 @@ final class MicRecorder {
     }
 
     private func noteRealBuffer() {
-        bufferLock.lock(); lastBufferAt = Date(); lastRealBufferAt = lastBufferAt; bufferLock.unlock()
+        bufferLock.lock()
+        lastBufferAt = Date()
+        lastRealBufferAt = lastBufferAt
+        // Микрофон вернулся — взводим уведомление заново: за встречу вход
+        // может отвалиться не один раз, и каждый провал стоит показать.
+        notifiedSilence = false
+        bufferLock.unlock()
     }
 
     private func secondsSinceLastBuffer() -> TimeInterval {
@@ -87,11 +94,24 @@ final class MicRecorder {
 
     private func setup() throws {
         guard let directory else { throw VaqloError(L("err.micUnavailable")) }
+
+        // Новый движок на каждую попытку — только так подхватывается текущая частота входа
+        // (см. комментарий у `engine`). Наблюдатель конфигурации привязан к конкретному
+        // экземпляру, поэтому переустанавливается вместе с ним.
+        let engine = AVAudioEngine()
+        self.engine = engine
+        observer = NotificationCenter.default.addObserver(
+            forName: .AVAudioEngineConfigurationChange, object: engine, queue: nil
+        ) { [weak self] _ in
+            self?.queue.async { self?.reconfigure(reason: "config change") }
+        }
+
         let input = engine.inputNode
         let format = input.outputFormat(forBus: 0)
         guard format.sampleRate > 0, format.channelCount > 0 else {
             throw VaqloError(L("err.micUnavailable"))
         }
+        NSLog("MicRecorder: вход \(Int(format.sampleRate)) Гц / \(format.channelCount) кан.")
         let sink = ChunkedAudioFile(directory: directory, prefix: "mic",
                                     processingFormat: format, startIndex: collected.count)
         self.sink = sink
@@ -113,16 +133,23 @@ final class MicRecorder {
         noteBuffer()  // сбрасываем таймер, чтобы watchdog не сработал сразу
     }
 
-    /// Закрыть текущий чанк-файл и переустановить движок (после смены конфигурации/останова).
-    private func reconfigure(reason: String) {
-        guard running else { return }
-        NSLog("MicRecorder: перезапуск (\(reason))")
+    /// Снять tap, остановить движок и отписаться от его уведомлений.
+    /// Экземпляр после этого не переиспользуется — его заменит новый в `setup()`.
+    private func teardownEngine() {
+        if let observer { NotificationCenter.default.removeObserver(observer); self.observer = nil }
         if let error = VQCatchObjCException({
             self.engine.inputNode.removeTap(onBus: 0)
             if self.engine.isRunning { self.engine.stop() }
         }) {
             NSLog("MicRecorder: исключение при остановке движка (\(error.localizedDescription))")
         }
+    }
+
+    /// Закрыть текущий чанк-файл и поднять микрофон заново (после смены конфигурации/останова).
+    private func reconfigure(reason: String) {
+        guard running else { return }
+        NSLog("MicRecorder: перезапуск (\(reason))")
+        teardownEngine()
         if let sink {
             sink.close()
             collected += sink.chunks
@@ -141,15 +168,9 @@ final class MicRecorder {
 
     func stop() -> [ChunkedAudioFile.ChunkInfo] {
         running = false
-        if let observer { NotificationCenter.default.removeObserver(observer); self.observer = nil }
         DispatchQueue.main.async { self.watchdog?.invalidate(); self.watchdog = nil }
         return queue.sync {
-            if let error = VQCatchObjCException({
-                self.engine.inputNode.removeTap(onBus: 0)
-                if self.engine.isRunning { self.engine.stop() }
-            }) {
-                NSLog("MicRecorder: исключение при остановке движка (\(error.localizedDescription))")
-            }
+            teardownEngine()
             sink?.close()
             let all = collected + (sink?.chunks ?? [])
             sink = nil

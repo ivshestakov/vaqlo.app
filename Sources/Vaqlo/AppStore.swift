@@ -34,6 +34,11 @@ final class AppStore: ObservableObject {
     private var micFreeSince: Date?
     /// id, которому уже показали уведомление в этой «встрече» — чтобы не спамить.
     private var notifiedThisMeeting = false
+    /// С какого момента чужое (не-«never») приложение непрерывно держит микрофон во время записи.
+    private var meetingBusySince: Date?
+    /// Во время текущей записи шла встреча (микрофон держали ≥ минуты) — значит,
+    /// её конец останавливает и ручную запись, а не только автозапись.
+    private var meetingSeenWhileRecording = false
 
     private init() {
         Storage.prepare()
@@ -46,6 +51,9 @@ final class AppStore: ObservableObject {
                 guard let self else { return }
                 self.isRecording = self.recorder.isRecording
                 if !self.isRecording { self.startedByMeeting = false }
+                // Привязка к встрече живёт в пределах одной сессии записи.
+                self.meetingSeenWhileRecording = false
+                self.meetingBusySince = nil
                 self.library.recordingID = self.recorder.currentSessionID
                 self.library.rescan()
                 self.syncControlCenterState()
@@ -113,22 +121,40 @@ final class AppStore: ObservableObject {
 
         defer { micWasActive = micActive }
 
-        // Микрофон освободился → автостарт пора останавливать.
+        // Микрофон освободился → запись, привязанную к встрече, пора останавливать.
         if !micActive {
             notifiedThisMeeting = false
-            if isRecording, startedByMeeting,
+            meetingBusySince = nil
+            if isRecording, startedByMeeting || meetingSeenWhileRecording,
                UserDefaults.standard.bool(forKey: SettingsKeys.meetingAutoStop) {
                 if micFreeSince == nil { micFreeSince = Date() }
                 // 20 секунд тишины — встреча действительно закончилась, а не пауза.
                 else if Date().timeIntervalSince(micFreeSince!) > 20 {
+                    let manual = !startedByMeeting
                     recorder.stop()
                     startedByMeeting = false
                     micFreeSince = nil
+                    // Ручную запись пользователь остановки не ждёт — объясняем, почему она прекратилась.
+                    if manual {
+                        Notifier.show(title: L("notif.autostop.title"), body: L("notif.autostop.body"))
+                    }
                 }
             }
             return
         }
         micFreeSince = nil
+
+        // Запись уже идёт (в т.ч. ручная), а параллельно кто-то держит микрофон — похоже на встречу.
+        // Минута непрерывного удержания отсекает короткие захваты вроде диктовки: после неё
+        // конец встречи остановит и ручную запись.
+        if isRecording, mode != 0, !meetingSeenWhileRecording {
+            if mics.contains(where: { MeetingPolicies.policy(for: $0.bundleID) != .never }) {
+                if meetingBusySince == nil { meetingBusySince = Date() }
+                else if Date().timeIntervalSince(meetingBusySince!) > 60 { meetingSeenWhileRecording = true }
+            } else {
+                meetingBusySince = nil
+            }
+        }
 
         // Новый триггер (микрофон только что заняли) и мы ещё не пишем.
         guard mode != 0, !isRecording, !micWasActive, !notifiedThisMeeting,

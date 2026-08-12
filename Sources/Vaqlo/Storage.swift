@@ -58,7 +58,7 @@ enum SettingsKeys {
     static let activeSummaryModel = "activeSummaryModel"
     static let autoSummarize = "autoSummarize"         // саммари сразу после транскрибации
     static let meetingDetection = "meetingDetection"   // 0 выкл, 1 уведомлять, 2 автозапись
-    static let meetingAutoStop = "meetingAutoStop"     // останавливать автозапись, когда микрофон освободился
+    static let meetingAutoStop = "meetingAutoStop"     // останавливать запись (и ручную, если во время неё шла встреча), когда микрофон освободился
     static let onboardingDone = "onboardingDone"
     static let appLanguage = "appLanguage"             // код языка интерфейса (uk/en/…)
     static let detectSpeakerNames = "detectSpeakerNames" // читать имена говорящих из Slack/Zoom

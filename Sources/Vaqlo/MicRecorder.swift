@@ -121,9 +121,9 @@ final class MicRecorder {
         var startError: Error?
         let objcError = VQCatchObjCException {
             input.removeTap(onBus: 0)
-            input.installTap(onBus: 0, bufferSize: 4096, format: format) { [weak self] buffer, _ in
+            input.installTap(onBus: 0, bufferSize: 4096, format: format) { [weak self] buffer, when in
                 self?.noteRealBuffer()
-                sink.write(buffer)
+                sink.write(buffer, hostTime: when.isHostTimeValid ? when.hostTime : nil)
             }
             self.engine.prepare()
             do { try self.engine.start() } catch { startError = error }

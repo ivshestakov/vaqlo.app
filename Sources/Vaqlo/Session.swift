@@ -22,10 +22,7 @@ struct Session: Identifiable, Equatable {
     var metadataURL: URL { directory.appendingPathComponent("session.json") }
 
     func loadMetadata() -> SessionMetadata? {
-        guard let data = try? Data(contentsOf: metadataURL) else { return nil }
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
-        return try? decoder.decode(SessionMetadata.self, from: data)
+        SessionMetadata.load(from: metadataURL)
     }
 
     func audioFiles() -> [URL] {

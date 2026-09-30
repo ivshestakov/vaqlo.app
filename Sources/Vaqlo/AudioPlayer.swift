@@ -31,7 +31,7 @@ enum AudioLocator {
                 if let url {
                     result.append(LocatedChunk(
                         url: url,
-                        startOffset: info.start.timeIntervalSince(session.start),
+                        startOffset: info.exactStart.timeIntervalSince(session.start),
                         source: source
                     ))
                 }

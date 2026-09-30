@@ -97,6 +97,8 @@ private struct TranscriptionJob {
     }
 
     func run() async throws {
+        // Обычно уже сделано после остановки записи; здесь — если приложение закрыли раньше.
+        EchoCleaner.clean(directory: session.directory)
         let metadata = session.loadMetadata()
         let audio = session.audioFiles()
         guard !audio.isEmpty else { throw VaqloError(L("err.noAudio")) }
@@ -237,7 +239,7 @@ private struct TranscriptionJob {
     private func chunkStartDate(name: String, metadata: SessionMetadata?) -> Date? {
         guard let metadata else { return session.start }
         let chunks = name.hasPrefix("mic") ? metadata.micChunks : metadata.systemChunks
-        return chunks.first { $0.file == "\(name).m4a" }?.start ?? session.start
+        return chunks.first { $0.file == "\(name).m4a" }?.exactStart ?? session.start
     }
 
     private func appName(at time: Date, metadata: SessionMetadata?) -> String? {

@@ -50,6 +50,15 @@ struct SessionMetadata: Codable {
     var activeSpeakers: [ActiveSpeakerSample]?
     /// Встреча из календаря (название + участники), если нашлась. nil в старых записях.
     var meeting: MeetingInfo?
+    /// mic-чанки, уже прошедшие подавление эха (`EchoCleaner`). nil — ни один.
+    var echoCancelled: [String]?
+
+    static func load(from url: URL) -> SessionMetadata? {
+        guard let data = try? Data(contentsOf: url) else { return nil }
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        return try? decoder.decode(SessionMetadata.self, from: data)
+    }
 
     func write(to url: URL) {
         let encoder = JSONEncoder()

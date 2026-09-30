@@ -63,10 +63,11 @@ final class SystemAudioRecorder {
         let sink = ChunkedAudioFile(directory: directory, prefix: "sys", processingFormat: format)
         self.sink = sink
 
-        status = AudioDeviceCreateIOProcIDWithBlock(&ioProcID, aggregateID, queue) { _, inInputData, _, _, _ in
+        status = AudioDeviceCreateIOProcIDWithBlock(&ioProcID, aggregateID, queue) { _, inInputData, inInputTime, _, _ in
             let bufferList = UnsafeMutablePointer(mutating: inInputData)
             guard let buffer = AVAudioPCMBuffer(pcmFormat: format, bufferListNoCopy: bufferList, deallocator: nil) else { return }
-            sink.write(buffer)
+            let time = inInputTime.pointee
+            sink.write(buffer, hostTime: time.mFlags.contains(.hostTimeValid) ? time.mHostTime : nil)
         }
         guard status == noErr, let ioProcID else {
             cleanup()

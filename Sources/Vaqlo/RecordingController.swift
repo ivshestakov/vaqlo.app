@@ -93,6 +93,8 @@ final class RecordingController {
                 meeting: CalendarService.meeting(start: start, end: end)
             )
             metadata.write(to: dir.appendingPathComponent("session.json"))
+            // Звонок через динамики → собеседники есть и в микрофоне; чистим, пока запись свежая.
+            EchoCleaner.cleanInBackground(directory: dir)
         }
 
         sessionDirectory = nil

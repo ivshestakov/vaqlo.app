@@ -19,8 +19,17 @@ final class ChunkedAudioFile {
 
     struct ChunkInfo: Codable {
         let file: String
+        /// ISO8601 в session.json хранит только целые секунды — для сведения дорожек этого мало.
         let start: Date
         var end: Date
+        /// Момент первого сэмпла чанка (Unix-время с долями секунды, по host time аудио-буфера).
+        /// Нет в записях до 0.1.6 — там остаётся округлённый `start`.
+        var startTime: TimeInterval? = nil
+
+        /// Точное начало чанка: по нему mic и sys кладутся на общую шкалу. С округлённым
+        /// `start` дорожки расходились на 0,05–0,6 с, и голос из динамиков, попавший
+        /// в микрофон, звучал в плеере вторым эхом.
+        var exactStart: Date { startTime.map(Date.init(timeIntervalSince1970:)) ?? start }
     }
 
     init(directory: URL, prefix: String, processingFormat: AVAudioFormat, startIndex: Int = 0) {
@@ -30,7 +39,9 @@ final class ChunkedAudioFile {
         self.chunkIndex = startIndex
     }
 
-    func write(_ buffer: AVAudioPCMBuffer) {
+    /// `hostTime` — host time первого сэмпла буфера (из аудио-колбэка); по нему считается
+    /// точное начало чанка. Без него берётся текущий момент, а это на задержку буфера позже.
+    func write(_ buffer: AVAudioPCMBuffer, hostTime: UInt64? = nil) {
         lock.lock()
         defer { lock.unlock() }
         // После close() писать нельзя: аудио-колбэк может пережить остановку
@@ -38,7 +49,7 @@ final class ChunkedAudioFile {
         guard !closed else { return }
         do {
             if file == nil || Date().timeIntervalSince(chunkStart) >= Self.chunkDuration {
-                try rotate()
+                try rotate(firstSampleAt: Self.date(ofHostTime: hostTime))
             }
             try file?.write(from: buffer)
         } catch {
@@ -61,10 +72,18 @@ final class ChunkedAudioFile {
         closed = true
     }
 
-    private func rotate() throws {
+    /// Перевод host time аудио-буфера в настенное время.
+    private static func date(ofHostTime hostTime: UInt64?) -> Date {
+        let now = Date()
+        guard let hostTime, hostTime > 0 else { return now }
+        let age = AVAudioTime.seconds(forHostTime: mach_absolute_time()) - AVAudioTime.seconds(forHostTime: hostTime)
+        return now.addingTimeInterval(-age)
+    }
+
+    private func rotate(firstSampleAt start: Date) throws {
         finishCurrentChunk()
         chunkIndex += 1
-        chunkStart = Date()
+        chunkStart = start
         let name = String(format: "%@_%04d.m4a", prefix, chunkIndex)
         let url = directory.appendingPathComponent(name)
         let settings: [String: Any] = [
@@ -79,7 +98,8 @@ final class ChunkedAudioFile {
             commonFormat: processingFormat.commonFormat,
             interleaved: processingFormat.isInterleaved
         )
-        chunks.append(ChunkInfo(file: name, start: chunkStart, end: chunkStart))
+        chunks.append(ChunkInfo(file: name, start: chunkStart, end: chunkStart,
+                                startTime: chunkStart.timeIntervalSince1970))
     }
 
     private func finishCurrentChunk() {

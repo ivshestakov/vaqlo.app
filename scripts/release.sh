@@ -118,5 +118,8 @@ cat <<ITEM
 ITEM
 echo "═══════════════════════════════════════════════════════════════════════════"
 echo
-echo "Готово: $(pwd)/$DMG"
+# Копия для стабильной ссылки releases/latest/download/Vaqlo.dmg. Без неё в релиз
+# уезжал оставшийся от прошлой версии dist/Vaqlo.dmg (так случилось с 0.1.7).
+cp "$DMG" dist/Vaqlo.dmg
+echo "Готово: $(pwd)/$DMG (+ dist/Vaqlo.dmg)"
 echo "Версия: $VERSION (build $BUILD)"

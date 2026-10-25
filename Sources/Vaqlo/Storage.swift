@@ -82,7 +82,7 @@ enum SettingsKeys {
             autoSummarize: false,
             meetingDetection: 1,
             meetingAutoStop: true,
-            detectSpeakerNames: true,
+            detectSpeakerNames: false,  // функция на паузе: чтение UI Slack ненадёжно
             calendarOnTimeline: true,
         ])
     }

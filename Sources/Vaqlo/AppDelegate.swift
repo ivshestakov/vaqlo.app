@@ -88,8 +88,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
             AppStore.shared.applyFirstSeenChoice(bundleID: bundleID, name: name, policy: .ask)
         case Notifier.actionNever:
             AppStore.shared.applyFirstSeenChoice(bundleID: bundleID, name: name, policy: .never)
-        case Notifier.recordAction, UNNotificationDefaultActionIdentifier:
+        case Notifier.recordAction:
             AppStore.shared.startRecordingFromNotification()
+        case UNNotificationDefaultActionIdentifier:
+            // Клик по самому баннеру пишет только у предложений «записать встречу»;
+            // у «запись остановлена» или «перезапустились после сбоя» он начинал новую запись.
+            let category = response.notification.request.content.categoryIdentifier
+            if category == Notifier.recordCategory || category == Notifier.firstSeenCategory {
+                AppStore.shared.startRecordingFromNotification()
+            }
         default:
             break
         }

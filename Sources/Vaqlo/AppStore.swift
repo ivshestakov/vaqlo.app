@@ -64,13 +64,7 @@ final class AppStore: ObservableObject {
         DistributedNotificationCenter.default().addObserver(
             forName: VaqloShared.toggleNotification, object: nil, queue: .main
         ) { _ in
-            Task { @MainActor in
-                let store = AppStore.shared
-                let requested = VaqloShared.defaults?.bool(forKey: VaqloShared.requestedKey) ?? !store.isRecording
-                if requested != store.isRecording {
-                    store.toggleRecording()
-                }
-            }
+            Task { @MainActor in AppStore.shared.handleControlRequest() }
         }
 
         // Контрол показывает число необработанных сессий — обновляем при каждом рескане.
@@ -103,6 +97,27 @@ final class AppStore: ObservableObject {
 
         syncControlCenterState()
         backfillMeetings()
+    }
+
+    private var lastControlRequestID: String?
+
+    /// Запрос из контрола Control Center. Принимается, только если контрол только что
+    /// записал в общий контейнер свежий одноразовый запрос: сама нотификация ничем
+    /// не защищена, её может отправить любой процесс.
+    private func handleControlRequest() {
+        guard let shared = VaqloShared.defaults,
+              let id = shared.string(forKey: VaqloShared.requestIDKey), id != lastControlRequestID else { return }
+        let at = shared.double(forKey: VaqloShared.requestTimeKey)
+        let requested = shared.bool(forKey: VaqloShared.requestedKey)
+        lastControlRequestID = id
+        shared.removeObject(forKey: VaqloShared.requestIDKey)
+        shared.removeObject(forKey: VaqloShared.requestTimeKey)
+        shared.removeObject(forKey: VaqloShared.requestedKey)
+        guard abs(Date().timeIntervalSince1970 - at) < VaqloShared.requestTTL else {
+            NSLog("Control request ignored: stale")
+            return
+        }
+        if requested != isRecording { toggleRecording() }
     }
 
     func toggleRecording() {
@@ -387,7 +402,7 @@ final class AppStore: ObservableObject {
         let target = URL(fileURLWithPath: folder).appendingPathComponent(name)
         var content = try String(contentsOf: session.transcriptMD, encoding: .utf8)
         if let summary = try? String(contentsOf: Summarizer.summaryURL(for: session), encoding: .utf8) {
-            content = "\(summary)\n\n---\n\n\(content)"
+            content = "\(SummarySanitizer.clean(summary))\n\n---\n\n\(content)"
         }
         try content.write(to: target, atomically: true, encoding: .utf8)
         return target

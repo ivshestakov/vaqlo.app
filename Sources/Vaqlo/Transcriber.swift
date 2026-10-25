@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 
 /// Транскрибация сессий: m4a → wav 16k (afconvert) → whisper-cli + диаризация (FluidAudio)
@@ -186,13 +187,13 @@ private struct TranscriptionJob {
                 guard let cluster = r.cluster, let name = activeName(at: r.time) else { continue }
                 votes[cluster, default: [:]][name, default: 0] += 1
             }
-            let meanByCluster = Dictionary(uniqueKeysWithValues: registry.clusters.map { ($0.key, $0.mean) })
             for (cluster, tally) in votes {
                 guard let winner = tally.max(by: { $0.value < $1.value })?.key else { continue }
                 labels[cluster] = winner
-                if let mean = meanByCluster[cluster] {
-                    VoiceLibrary.enroll(name: winner, embedding: mean)
-                }
+                // Отпечаток в библиотеку НЕ пишем: имя прочитано из UI чужого приложения
+                // (любой участник чата может написать «Alice is speaking»), а ошибочный
+                // отпечаток потом подписывал бы этим именем чужой голос во всех встречах.
+                // В библиотеку голос попадает только при ручном переименовании.
             }
         }
 
@@ -217,6 +218,12 @@ private struct TranscriptionJob {
         }
         SessionSpeaker.save(speakers, for: session)
 
+        // Пустой транскрипт — скорее сбой (тишина в дорожке, не та модель), чем пустая
+        // встреча: аудио оставляем, чтобы запись можно было перераспознать.
+        guard !lines.isEmpty else {
+            NSLog("Transcriber: пустой транскрипт \(session.id) — аудио не трогаем")
+            return
+        }
         let formatter = DateFormatter()
         formatter.dateFormat = "d MMM HH:mm"
         TrashKeeper.trashAudio(audio, sessionTitle: formatter.string(from: session.start))
@@ -284,30 +291,36 @@ private struct TranscriptionJob {
     static func ensureVADModel() -> URL? {
         let url = Storage.models.appendingPathComponent("ggml-silero-v5.1.2.bin")
         if FileManager.default.fileExists(atPath: url.path) { return url }
-        let remote = URL(string: "https://huggingface.co/ggml-org/whisper-vad/resolve/main/ggml-silero-v5.1.2.bin")!
+        // Закреплённый коммит + SHA-256 (см. ModelIntegrity): без статуса и хэша сюда
+        // могла лечь страница ошибки или подменённый файл.
+        let remote = URL(string: "https://huggingface.co/ggml-org/whisper-vad/resolve/9ffd54a1e1ee413ddf265af9913beaf518d1639b/ggml-silero-v5.1.2.bin")!
+        let expected = "29940d98d42b91fbd05ce489f3ecf7c72f0a42f027e4875919a28fb4c04ea2cf"
+        var result: (Data?, URLResponse?) = (nil, nil)
+        let done = DispatchSemaphore(value: 0)
+        URLSession.shared.dataTask(with: remote) { data, response, _ in
+            result = (data, response)
+            done.signal()
+        }.resume()
+        guard done.wait(timeout: .now() + 120) == .success,
+              let data = result.0, (result.1 as? HTTPURLResponse)?.statusCode == 200,
+              SHA256.hash(data: data).map({ String(format: "%02x", $0) }).joined() == expected else {
+            NSLog("VAD model download failed or didn't verify — продолжаем без VAD")
+            return nil
+        }
         do {
-            let data = try Data(contentsOf: remote)
-            try data.write(to: url)
+            try data.write(to: url, options: .atomic)
             return url
         } catch {
-            NSLog("VAD model download failed (продолжаем без VAD): \(error)")
+            NSLog("VAD model write failed (продолжаем без VAD): \(error)")
             return nil
         }
     }
 
     private func runProcess(_ launchPath: String, _ arguments: [String]) throws {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: launchPath)
-        process.arguments = arguments
-        let errPipe = Pipe()
-        process.standardError = errPipe
-        process.standardOutput = Pipe()
-        try process.run()
-        process.waitUntilExit()
-        guard process.terminationStatus == 0 else {
-            let err = String(data: errPipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
+        let result = try ProcessRunner.run(URL(fileURLWithPath: launchPath), arguments)
+        guard result.status == 0 else {
             let tool = (launchPath as NSString).lastPathComponent
-            throw VaqloError("\(tool) exited with code \(process.terminationStatus): \(err.suffix(300))")
+            throw VaqloError("\(tool) exited with code \(result.status): \(result.stderrText.suffix(300))")
         }
     }
 

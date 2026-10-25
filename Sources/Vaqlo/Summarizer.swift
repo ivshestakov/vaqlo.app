@@ -115,9 +115,7 @@ private struct SummaryJob {
             throw VaqloError("llama-completion not found inside the app — rebuild it")
         }
 
-        let process = Process()
-        process.executableURL = cli
-        process.arguments = [
+        let arguments = [
             "-m", modelFile.path,
             "--jinja",
             "-st",  // один ход и выход: без этого свежий llama.cpp ждёт диалога и выдаёт пустоту
@@ -129,22 +127,38 @@ private struct SummaryJob {
             "--no-display-prompt",
             "--no-warmup",
         ]
-        let out = Pipe()
-        let err = Pipe()
-        process.standardOutput = out
-        process.standardError = err
-        try process.run()
-        let data = out.fileHandleForReading.readDataToEndOfFile()
-        process.waitUntilExit()
-        guard process.terminationStatus == 0 else {
-            let message = String(data: err.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
-            throw VaqloError("llama-cli exited with code \(process.terminationStatus): \(message.suffix(300))")
+        let output = try ProcessRunner.run(cli, arguments)
+        guard output.status == 0 else {
+            throw VaqloError("llama-cli exited with code \(output.status): \(output.stderrText.suffix(300))")
         }
+        let data = output.stdout
         let result = String(data: data, encoding: .utf8)?
             .replacingOccurrences(of: "[end of text]", with: "")
             .replacingOccurrences(of: "> EOF by user", with: "")
             .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         guard !result.isEmpty else { throw VaqloError("The model returned an empty response") }
-        return result
+        return SummarySanitizer.clean(result)
+    }
+}
+
+/// Чистит ответ LLM от ссылок, картинок и HTML. В промпт попадает чужой текст
+/// (описание приглашения в календаре, речь собеседников) — через него модель можно
+/// заставить вставить `![](https://…?d=<кусок транскрипта>)`: SwiftUI делает ссылку
+/// кликабельной, а Obsidian подгружает картинку из экспорта — и данные уходят наружу.
+enum SummarySanitizer {
+    static func clean(_ text: String) -> String {
+        var s = text
+        let rules: [(String, String)] = [
+            (#"!\[([^\]]*)\]\([^)]*\)"#, "$1"),            // ![alt](url) → alt
+            (#"\[([^\]]+)\]\([^)]*\)"#, "$1"),             // [text](url) → text
+            (#"(?m)^\s*\[[^\]]+\]:\s*\S+.*$"#, ""),        // [ref]: url
+            (#"\[([^\]]+)\]\[[^\]]*\]"#, "$1"),           // [text][ref] → text
+            (#"<(https?|ftp|file|mailto|data|javascript):[^>]*>"#, ""), // <scheme:…>
+            (#"</?[A-Za-z][^>]*>"#, ""),                       // HTML-теги (<img>, <a>, <iframe>)
+        ]
+        for (pattern, template) in rules {
+            s = s.replacingOccurrences(of: pattern, with: template, options: .regularExpression)
+        }
+        return s
     }
 }

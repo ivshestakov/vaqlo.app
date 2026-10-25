@@ -1,0 +1,4 @@
+"NSMicrophoneUsageDescription" = "Vaqlo nimmt dein Mikrofon auf, um ein lokales Transkript deiner Gespräche zu führen.";
+"NSAudioCaptureUsageDescription" = "Vaqlo nimmt den Systemton (Anrufe, Videos) für ein lokales Transkript auf. Nichts verlässt deinen Mac.";
+"NSCalendarsFullAccessUsageDescription" = "Vaqlo liest Kalenderereignisse, um Aufnahmen mit Meeting-Titel und Teilnehmern zu beschriften.";
+"NSHumanReadableCopyright" = "© 2026 Ivan Shestakov. MIT License.";

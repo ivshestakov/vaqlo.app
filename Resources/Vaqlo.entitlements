@@ -10,10 +10,11 @@
 	     отказывает в доступе и даже не показывает запрос. -->
 	<key>com.apple.security.personal-information.calendars</key>
 	<true/>
-	<!-- Общий контейнер с виджетом Control Center (статус записи). -->
+	<!-- Общий контейнер с виджетом Control Center (статус записи). Формат TEAMID.* —
+	     для Developer ID без provisioning profile; «group.*» macOS игнорирует. -->
 	<key>com.apple.security.application-groups</key>
 	<array>
-		<string>group.com.vaqlo</string>
+		<string>975ZZPJQNB.com.vaqlo</string>
 	</array>
 </dict>
 </plist>

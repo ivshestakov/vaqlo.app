@@ -38,6 +38,7 @@ mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources" "$APP/Contents/Extensio
          "$APP/Contents/Library/LaunchAgents"
 cp Resources/Info.plist "$APP/Contents/Info.plist"
 cp Resources/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
+cp -R Resources/Localizations/*.lproj "$APP/Contents/Resources/"  # запросы разрешений на 7 языках
 cp Resources/com.vaqlo.agent.plist "$APP/Contents/Library/LaunchAgents/com.vaqlo.agent.plist"
 cp .build/release/Vaqlo "$APP/Contents/MacOS/Vaqlo"
 cp "$WHISPER_CLI" "$APP/Contents/Resources/whisper-cli"
@@ -114,6 +115,9 @@ spctl -a -vvv "$APP" 2>&1 | head -3 || true
 # Готовый блок для appcast.xml на panic-kit (EdDSA-подпись через Sparkle).
 BUILD="$(/usr/libexec/PlistBuddy -c 'Print CFBundleVersion' Resources/Info.plist)"
 SIGN_TOOL=".build/artifacts/sparkle/Sparkle/bin/sign_update"
+# Без EdDSA-подписи клиенты отвергнут обновление — значит, item печатать нельзя.
+ED_SIGNATURE="$("$SIGN_TOOL" "$DMG")" || { echo "✗ sign_update не подписал $DMG" >&2; exit 1; }
+[[ "$ED_SIGNATURE" == *edSignature=* ]] || { echo "✗ sign_update вернул неожиданное: $ED_SIGNATURE" >&2; exit 1; }
 echo
 echo "════════ appcast item (вставить в panic-kit-site/vaqlo/appcast.xml) ════════"
 cat <<ITEM
@@ -127,7 +131,7 @@ cat <<ITEM
       <enclosure
         url="https://github.com/ivshestakov/vaqlo.app/releases/download/v$VERSION/Vaqlo-$VERSION.dmg"
         type="application/octet-stream"
-        $("$SIGN_TOOL" "$DMG" 2>/dev/null) />
+        $ED_SIGNATURE />
     </item>
 ITEM
 echo "═══════════════════════════════════════════════════════════════════════════"

@@ -203,7 +203,9 @@ struct SessionDetailView: View {
                             .buttonStyle(.borderless)
                             .help(L("meeting.openCal"))
                         }
-                        if let link = meeting.conferenceURL.flatMap(URL.init(string:)) {
+                        // Старые session.json могли сохранить ссылку до проверки домена.
+                        if let link = meeting.conferenceURL.flatMap(URL.init(string:)),
+                           CalendarService.isTrustedConferenceLink(link) {
                             Link(destination: link) { Image(systemName: "video") }
                                 .help(L("meeting.join"))
                         }
@@ -487,7 +489,8 @@ struct SessionDetailView: View {
     }
 
     private var summaryText: String? {
-        try? String(contentsOf: Summarizer.summaryURL(for: session), encoding: .utf8)
+        // Старые саммари (до очистки ссылок) тоже показываем очищенными.
+        (try? String(contentsOf: Summarizer.summaryURL(for: session), encoding: .utf8)).map(SummarySanitizer.clean)
     }
 
     private var transcriptList: some View {

@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 
 /// Любая скачиваемая модель (Whisper, LLM для саммари).
@@ -8,6 +9,32 @@ protocol DownloadableModel: Identifiable {
     var sizeMB: Int { get }
     var url: URL { get }
     var fileURL: URL { get }
+    /// SHA-256 и размер файла на закреплённом коммите: скачанное сверяется до установки.
+    var sha256: String { get }
+    var bytes: Int64 { get }
+}
+
+/// Проверка целостности моделей. Ссылки закреплены на коммит репозитория (не `main`),
+/// хэш — тот же, что HuggingFace отдаёт в `X-Linked-Etag`. Подменённый или битый файл
+/// не попадёт к whisper.cpp / llama.cpp, которые разбирают его с правами пользователя.
+enum ModelIntegrity {
+    static func sha256(of url: URL) -> String? {
+        guard let handle = try? FileHandle(forReadingFrom: url) else { return nil }
+        defer { try? handle.close() }
+        var hasher = SHA256()
+        while true {
+            let chunk = handle.readData(ofLength: 8 << 20)
+            if chunk.isEmpty { break }
+            hasher.update(data: chunk)
+        }
+        return hasher.finalize().map { String(format: "%02x", $0) }.joined()
+    }
+
+    static func verify(_ url: URL, sha256 expected: String, bytes: Int64) -> Bool {
+        let size = (try? FileManager.default.attributesOfItem(atPath: url.path)[.size] as? Int64) ?? -1
+        guard size == bytes else { return false }
+        return sha256(of: url) == expected
+    }
 }
 
 struct WhisperModel: DownloadableModel {
@@ -16,6 +43,8 @@ struct WhisperModel: DownloadableModel {
     let details: String
     let sizeMB: Int
     let url: URL
+    let sha256: String
+    let bytes: Int64
 
     var fileURL: URL { Storage.models.appendingPathComponent("ggml-\(id).bin") }
 
@@ -25,21 +54,18 @@ struct WhisperModel: DownloadableModel {
             title: "Large v3 Turbo (\(L("model.recommended")))",
             details: L("model.whisper.turbo"),
             sizeMB: 574,
-            url: URL(string: "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-turbo-q5_0.bin")!
+            url: URL(string: "https://huggingface.co/ggerganov/whisper.cpp/resolve/5359861c739e955e79d9a303bcbc70fb988958b1/ggml-large-v3-turbo-q5_0.bin")!,
+            sha256: "394221709cd5ad1f40c46e6031ca61bce88931e6e088c188294c6d5a55ffa7e2",
+            bytes: 574_041_195
         ),
         WhisperModel(
             id: "small-q5_1",
             title: "Small",
             details: L("model.whisper.small"),
             sizeMB: 190,
-            url: URL(string: "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small-q5_1.bin")!
-        ),
-        WhisperModel(
-            id: "base-q5_1",
-            title: "Base",
-            details: L("model.whisper.base"),
-            sizeMB: 60,
-            url: URL(string: "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base-q5_1.bin")!
+            url: URL(string: "https://huggingface.co/ggerganov/whisper.cpp/resolve/5359861c739e955e79d9a303bcbc70fb988958b1/ggml-small-q5_1.bin")!,
+            sha256: "ae85e4a935d7a567bd102fe55afc16bb595bdb618e11b2fc7591bc08120411bb",
+            bytes: 190_085_487
         ),
     ] }
 }
@@ -51,6 +77,8 @@ struct SummaryModel: DownloadableModel {
     let details: String
     let sizeMB: Int
     let url: URL
+    let sha256: String
+    let bytes: Int64
 
     var fileURL: URL { Storage.models.appendingPathComponent("\(id).gguf") }
 
@@ -60,21 +88,9 @@ struct SummaryModel: DownloadableModel {
             title: "Qwen3 4B (\(L("model.recommended")))",
             details: L("model.llm.qwen"),
             sizeMB: 2400,
-            url: URL(string: "https://huggingface.co/unsloth/Qwen3-4B-Instruct-2507-GGUF/resolve/main/Qwen3-4B-Instruct-2507-Q4_K_M.gguf")!
-        ),
-        SummaryModel(
-            id: "llama-3.2-3b-instruct-q4",
-            title: "Llama 3.2 3B",
-            details: L("model.llm.llama3b"),
-            sizeMB: 1950,
-            url: URL(string: "https://huggingface.co/bartowski/Llama-3.2-3B-Instruct-GGUF/resolve/main/Llama-3.2-3B-Instruct-Q4_K_M.gguf")!
-        ),
-        SummaryModel(
-            id: "llama-3.2-1b-instruct-q4",
-            title: "Llama 3.2 1B",
-            details: L("model.llm.llama1b"),
-            sizeMB: 810,
-            url: URL(string: "https://huggingface.co/bartowski/Llama-3.2-1B-Instruct-GGUF/resolve/main/Llama-3.2-1B-Instruct-Q4_K_M.gguf")!
+            url: URL(string: "https://huggingface.co/unsloth/Qwen3-4B-Instruct-2507-GGUF/resolve/a06e946bb6b655725eafa393f4a9745d460374c9/Qwen3-4B-Instruct-2507-Q4_K_M.gguf")!,
+            sha256: "3605803b982cb64aead44f6c1b2ae36e3acdb41d8e46c8a94c6533bc4c67e597",
+            bytes: 2_497_281_120
         ),
     ] }
 }
@@ -96,7 +112,21 @@ final class ModelManager: NSObject, ObservableObject {
 
     override init() {
         super.init()
+        Self.migrateRemovedPresets()
         refresh()
+    }
+
+    /// Каталог сокращён до проверенных моделей (0.1.9: убраны Whisper Base и Llama 3.2).
+    /// Кто выбрал убранную — переезжает на рекомендуемую, иначе транскрибация/саммари
+    /// молча перестали бы находить модель.
+    private static func migrateRemovedPresets() {
+        let defaults = UserDefaults.standard
+        if let id = defaults.string(forKey: SettingsKeys.activeModel), !WhisperModel.presets.contains(where: { $0.id == id }) {
+            defaults.removeObject(forKey: SettingsKeys.activeModel)
+        }
+        if let id = defaults.string(forKey: SettingsKeys.activeSummaryModel), !SummaryModel.presets.contains(where: { $0.id == id }) {
+            defaults.removeObject(forKey: SettingsKeys.activeSummaryModel)
+        }
     }
 
     func refresh() {
@@ -159,19 +189,49 @@ extension ModelManager: URLSessionDownloadDelegate {
                                 didFinishDownloadingTo location: URL) {
         guard let id = downloadTask.taskDescription,
               let model = Self.catalog.first(where: { $0.id == id }) else { return }
-        // location живёт только внутри этого вызова — переносим синхронно.
+        // Страница ошибки (404/5xx) тоже «скачивается» — раньше она ложилась как модель
+        // и ломала каждую следующую транскрибацию.
+        let status = (downloadTask.response as? HTTPURLResponse)?.statusCode ?? 0
+        guard status == 200 else {
+            Task { @MainActor in
+                self.tasks[id] = nil
+                self.progress[id] = nil
+                self.errors[id] = L("err.modelHTTP", status)
+            }
+            return
+        }
+        // location живёт только внутри этого вызова — синхронно уносим во временный файл
+        // рядом с моделью, проверяем хэш в фоне и только потом ставим на место.
+        let partial = model.fileURL.appendingPathExtension("part")
         var moveError: String?
         do {
-            try? FileManager.default.removeItem(at: model.fileURL)
-            try FileManager.default.moveItem(at: location, to: model.fileURL)
+            try? FileManager.default.removeItem(at: partial)
+            try FileManager.default.moveItem(at: location, to: partial)
         } catch {
             moveError = error.localizedDescription
         }
-        Task { @MainActor in
-            self.tasks[id] = nil
-            self.progress[id] = nil
-            self.errors[id] = moveError
-            self.refresh()
+        let sha256 = model.sha256, bytes = model.bytes, target = model.fileURL
+        DispatchQueue.global(qos: .utility).async {
+            var error = moveError
+            if error == nil {
+                if ModelIntegrity.verify(partial, sha256: sha256, bytes: bytes) {
+                    do {
+                        try? FileManager.default.removeItem(at: target)
+                        try FileManager.default.moveItem(at: partial, to: target)
+                    } catch let moveFailure {
+                        error = moveFailure.localizedDescription
+                    }
+                } else {
+                    error = L("err.modelChecksum")
+                }
+            }
+            try? FileManager.default.removeItem(at: partial)
+            Task { @MainActor in
+                self.tasks[id] = nil
+                self.progress[id] = nil
+                self.errors[id] = error
+                self.refresh()
+            }
         }
     }
 

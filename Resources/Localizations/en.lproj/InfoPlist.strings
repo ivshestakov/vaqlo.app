@@ -1,0 +1,4 @@
+"NSMicrophoneUsageDescription" = "Vaqlo records your microphone to keep a local transcript of your conversations.";
+"NSAudioCaptureUsageDescription" = "Vaqlo records system audio (calls, videos) to keep a local transcript. Nothing leaves your Mac.";
+"NSCalendarsFullAccessUsageDescription" = "Vaqlo reads calendar events to label recordings with the meeting title and participants.";
+"NSHumanReadableCopyright" = "© 2026 Ivan Shestakov. MIT License.";

@@ -14,7 +14,7 @@ targets:
       properties:
         com.apple.security.app-sandbox: true
         com.apple.security.application-groups:
-          - group.com.vaqlo
+          - 975ZZPJQNB.com.vaqlo
     info:
       path: ControlExtension/Info.plist
       properties:

@@ -75,7 +75,10 @@ struct ToggleRecordingIntent: SetValueIntent {
     var value: Bool
 
     func perform() async throws -> some IntentResult {
-        VaqloShared.defaults?.set(value, forKey: VaqloShared.requestedKey)
+        guard let defaults = VaqloShared.defaults else { return .result() }
+        defaults.set(value, forKey: VaqloShared.requestedKey)
+        defaults.set(Date().timeIntervalSince1970, forKey: VaqloShared.requestTimeKey)
+        defaults.set(UUID().uuidString, forKey: VaqloShared.requestIDKey)
         DistributedNotificationCenter.default().postNotificationName(
             VaqloShared.toggleNotification,
             object: nil,

@@ -26,11 +26,19 @@ struct TrashEntry: Codable, Identifiable, Equatable {
 /// Кладёт отработанное аудио и удалённые сессии в системную Корзину,
 /// помнит, что положило, умеет восстанавливать и само чистит через N дней.
 enum TrashKeeper {
+    /// trash.json правят и фоновая транскрибация, и UI — без замка read-modify-write
+    /// из двух потоков терял записи о файлах (их потом нельзя было восстановить).
+    private static let lock = NSRecursiveLock()
+
     static func all() -> [TrashEntry] {
-        load().filter(\.stillExists).sorted { $0.date > $1.date }
+        lock.lock()
+        defer { lock.unlock() }
+        return load().filter(\.stillExists).sorted { $0.date > $1.date }
     }
 
     static func trashAudio(_ files: [URL], sessionTitle: String) {
+        lock.lock()
+        defer { lock.unlock() }
         var entries = load()
         for file in files {
             if let trashed = moveToTrash(file) {
@@ -48,6 +56,8 @@ enum TrashKeeper {
     }
 
     static func trashSession(_ session: Session) {
+        lock.lock()
+        defer { lock.unlock() }
         var entries = load()
         let formatter = DateFormatter()
         formatter.dateFormat = "d MMM HH:mm"
@@ -65,6 +75,8 @@ enum TrashKeeper {
     }
 
     static func restore(_ entry: TrashEntry) throws {
+        lock.lock()
+        defer { lock.unlock() }
         let original = URL(fileURLWithPath: entry.originalPath)
         try FileManager.default.createDirectory(
             at: original.deletingLastPathComponent(),
@@ -75,11 +87,15 @@ enum TrashKeeper {
     }
 
     static func deleteNow(_ entry: TrashEntry) {
+        lock.lock()
+        defer { lock.unlock() }
         try? FileManager.default.removeItem(atPath: entry.trashedPath)
         save(load().filter { $0.id != entry.id })
     }
 
     static func emptyAll() {
+        lock.lock()
+        defer { lock.unlock() }
         for entry in load() {
             try? FileManager.default.removeItem(atPath: entry.trashedPath)
         }
@@ -88,10 +104,18 @@ enum TrashKeeper {
 
     /// Вызывается при старте и раз в час: чистит то, чей срок хранения истёк.
     static func purgeExpired() {
+        lock.lock()
+        defer { lock.unlock() }
         var remaining: [TrashEntry] = []
         for entry in load() {
             if entry.deleteAt <= Date() {
-                try? FileManager.default.removeItem(atPath: entry.trashedPath)
+                do {
+                    try FileManager.default.removeItem(atPath: entry.trashedPath)
+                } catch where entry.stillExists {
+                    // Не удалилось (права, файл занят) — не забываем про него, попробуем снова.
+                    NSLog("TrashKeeper: не удалось удалить \(entry.trashedPath): \(error.localizedDescription)")
+                    remaining.append(entry)
+                } catch {}
             } else if entry.stillExists {
                 remaining.append(entry)
             }
@@ -139,6 +163,6 @@ enum TrashKeeper {
     private static func save(_ entries: [TrashEntry]) {
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
-        try? encoder.encode(entries).write(to: Storage.trashLog)
+        try? encoder.encode(entries).write(to: Storage.trashLog, options: .atomic)
     }
 }

@@ -202,7 +202,7 @@ private struct GeneralSettings: View {
     @AppStorage(SettingsKeys.selfLabel) private var selfLabel = ""
     @AppStorage(SettingsKeys.meetingDetection) private var meetingDetection = 1
     @AppStorage(SettingsKeys.meetingAutoStop) private var meetingAutoStop = true
-    @AppStorage(SettingsKeys.detectSpeakerNames) private var detectSpeakerNames = true
+    @AppStorage(SettingsKeys.detectSpeakerNames) private var detectSpeakerNames = false
     @State private var launchAtLogin = CrashGuard.isEnabled
     @State private var accessibilityTrusted = AccessibilityHelper.isTrusted
     @State private var calendarAuthorized = CalendarService.isAuthorized

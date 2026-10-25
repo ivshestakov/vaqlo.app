@@ -219,17 +219,24 @@ enum CalendarService {
     }
 
     /// Ссылка на звонок: url события, иначе первая meet/zoom/teams-ссылка в месте или описании.
+    /// Только https и только известные сервисы звонков — точный домен или его поддомен.
+    /// Описание приглашения пишет кто угодно: «zoom.us.attacker.tld» не должен стать кнопкой «Звонок».
     static func conferenceURL(_ event: EKEvent) -> URL? {
-        if let url = event.url, url.scheme?.hasPrefix("http") == true { return url }
-        let hosts = ["meet.google.com", "zoom.us", "teams.microsoft.com", "webex.com", "telemost.yandex"]
-        for text in [event.location, event.notes].compactMap({ $0 }) {
-            guard let detector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue) else { break }
-            let range = NSRange(text.startIndex..., in: text)
-            for match in detector.matches(in: text, range: range) {
-                if let url = match.url, hosts.contains(where: { url.host?.contains($0) == true }) { return url }
-            }
-        }
-        return nil
+        let candidates = [event.url].compactMap { $0 } + [event.location, event.notes].compactMap { $0 }.flatMap(links(in:))
+        return candidates.first(where: isTrustedConferenceLink)
+    }
+
+    private static let conferenceHosts = ["meet.google.com", "zoom.us", "teams.microsoft.com", "teams.live.com",
+                                          "webex.com", "telemost.yandex.ru", "telemost.360.yandex.ru", "whereby.com"]
+
+    static func isTrustedConferenceLink(_ url: URL) -> Bool {
+        guard url.scheme?.lowercased() == "https", let host = url.host?.lowercased() else { return false }
+        return conferenceHosts.contains { host == $0 || host.hasSuffix("." + $0) }
+    }
+
+    private static func links(in text: String) -> [URL] {
+        guard let detector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue) else { return [] }
+        return detector.matches(in: text, range: NSRange(text.startIndex..., in: text)).compactMap(\.url)
     }
 
     /// Описание без HTML и без служебного блока «Join with Google Meet» (между `-::~:~::~:` маркерами).

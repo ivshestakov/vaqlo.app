@@ -2,6 +2,8 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>en</string>
 	<key>CFBundleDisplayName</key>
 	<string>Vaqlo</string>
 	<key>CFBundleExecutable</key>
@@ -12,6 +14,16 @@
 	<string>AppIcon</string>
 	<key>CFBundleIdentifier</key>
 	<string>com.vaqlo.recorder</string>
+	<key>CFBundleLocalizations</key>
+	<array>
+		<string>en</string>
+		<string>uk</string>
+		<string>fr</string>
+		<string>es</string>
+		<string>pt</string>
+		<string>de</string>
+		<string>it</string>
+	</array>
 	<key>CFBundleName</key>
 	<string>Vaqlo</string>
 	<key>CFBundlePackageType</key>
@@ -25,13 +37,13 @@
 	<key>LSUIElement</key>
 	<true/>
 	<key>NSAudioCaptureUsageDescription</key>
-	<string>Vaqlo записывает системный звук (звонки, видео, музыку), чтобы вести локальный транскрипт.</string>
+	<string>Vaqlo records system audio (calls, videos) to keep a local transcript. Nothing leaves your Mac.</string>
 	<key>NSCalendarsFullAccessUsageDescription</key>
-	<string>Vaqlo читает события календаря, чтобы подписать запись названием встречи и участниками.</string>
+	<string>Vaqlo reads calendar events to label recordings with the meeting title and participants.</string>
 	<key>NSHumanReadableCopyright</key>
-	<string>© 2026 Ivan Shestakov. Все права защищены.</string>
+	<string>© 2026 Ivan Shestakov. MIT License.</string>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>Vaqlo записывает микрофон, чтобы вести локальный транскрипт ваших разговоров.</string>
+	<string>Vaqlo records your microphone to keep a local transcript of your conversations.</string>
 	<key>SUEnableAutomaticChecks</key>
 	<true/>
 	<key>SUFeedURL</key>
@@ -40,5 +52,7 @@
 	<string>jxJctZXd7IIRthQEe2DyTHYZvNZ4gVv0/kbh4C94pgo=</string>
 	<key>SUScheduledCheckInterval</key>
 	<integer>86400</integer>
+	<key>SUVerifyUpdateBeforeExtraction</key>
+	<true/>
 </dict>
 </plist>

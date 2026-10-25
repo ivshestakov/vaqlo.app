@@ -14,6 +14,7 @@ final class RecordingController {
     private(set) var currentSessionID: String?
     private var sessionDirectory: URL?
     private var metadataTimer: Timer?
+    private var audioEvents = AudioEventLog()
 
     var onStateChange: (() -> Void)?
 
@@ -25,9 +26,11 @@ final class RecordingController {
         let id = formatter.string(from: start)
         let dir = Storage.recordings.appendingPathComponent(id)
 
+        let events = AudioEventLog()
+        audioEvents = events
         do {
             try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-            try system.start(directory: dir)
+            try system.start(directory: dir, events: events)
         } catch {
             _ = system.stop()
             showError(error)
@@ -37,7 +40,7 @@ final class RecordingController {
         // Микрофон недоступен (смена аудио-устройства, вход занят) — сессию не бросаем:
         // системный звук уже пишется, а MicRecorder продолжит поднимать вход watchdog-ом.
         do {
-            try mic.start(directory: dir)
+            try mic.start(directory: dir, events: events)
         } catch {
             NSLog("RecordingController: микрофон не стартовал (\(error.localizedDescription)) — пишем системный звук, mic поднимет watchdog")
         }
@@ -70,6 +73,7 @@ final class RecordingController {
             frontmostApps: appSampler.snapshot,
             activeSpeakers: speakerSampler.snapshot
         )
+        metadata.audioEvents = audioEvents.snapshot
         applyMeeting(to: &metadata, start: start, end: end ?? Date(), existing: url)
         metadata.write(to: url)
     }
@@ -107,6 +111,7 @@ final class RecordingController {
                 frontmostApps: appTimeline,
                 activeSpeakers: speakerTimeline
             )
+            metadata.audioEvents = audioEvents.snapshot
             applyMeeting(to: &metadata, start: start, end: end, existing: url)
             metadata.write(to: url)
             // Звонок через динамики → собеседники есть и в микрофоне; чистим, пока запись свежая.

@@ -8,13 +8,16 @@ final class ChunkedAudioFile {
 
     private let directory: URL
     private let prefix: String
-    private let processingFormat: AVAudioFormat
+    let processingFormat: AVAudioFormat
     private let lock = NSLock()
 
     private var file: AVAudioFile?
     private var chunkIndex = 0
     private var chunkStart = Date()
     private var closed = false
+    /// Следующая запись начнёт новый чанк (после перерыва в потоке буферов —
+    /// чтобы `startTime` чанка снова совпадал с реальным временем первого сэмпла).
+    private var rotatePending = false
     private(set) var chunks: [ChunkInfo] = []
 
     struct ChunkInfo: Codable {
@@ -48,7 +51,8 @@ final class ChunkedAudioFile {
         // (teardown Core Audio не гарантирован) — иначе файл «воскреснет».
         guard !closed else { return }
         do {
-            if file == nil || Date().timeIntervalSince(chunkStart) >= Self.chunkDuration {
+            if file == nil || rotatePending || Date().timeIntervalSince(chunkStart) >= Self.chunkDuration {
+                rotatePending = false
                 try rotate(firstSampleAt: Self.date(ofHostTime: hostTime))
             }
             try file?.write(from: buffer)
@@ -62,6 +66,20 @@ final class ChunkedAudioFile {
         lock.lock()
         defer { lock.unlock() }
         return chunks
+    }
+
+    /// Закрыть текущий чанк; следующий буфер откроет новый.
+    func startNewChunk() {
+        lock.lock()
+        defer { lock.unlock() }
+        rotatePending = true
+    }
+
+    /// Номер последнего созданного чанка — чтобы новый писатель продолжил нумерацию.
+    var lastIndex: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return chunkIndex
     }
 
     func close() {

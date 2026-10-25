@@ -36,6 +36,23 @@ enum MeetingDetector {
 
     /// Приложения, прямо сейчас использующие вход (микрофон), кроме нас самих.
     static func appsUsingMic() -> [ActiveMic] {
+        var result: [ActiveMic] = []
+        for processID in processObjects() {
+            guard isRunningInput(processID), let bundleID = bundleID(processID), bundleID != ownBundleID else { continue }
+            result.append(ActiveMic(bundleID: bundleID))
+        }
+        return result
+    }
+
+    /// Какое-то приложение, кроме нас, прямо сейчас выводит звук (идёт звонок, видео…).
+    /// Нужно watchdog-у системной дорожки: тишина в tap при живом выводе = захват умер.
+    static func isAnotherAppPlayingAudio() -> Bool {
+        processObjects().contains { processID in
+            isRunning(processID, kAudioProcessPropertyIsRunningOutput) && bundleID(processID) != ownBundleID
+        }
+    }
+
+    private static func processObjects() -> [AudioObjectID] {
         let system = AudioObjectID(kAudioObjectSystemObject)
         var listAddress = AudioObjectPropertyAddress(
             mSelector: kAudioHardwarePropertyProcessObjectList,
@@ -48,18 +65,16 @@ enum MeetingDetector {
         guard count > 0 else { return [] }
         var processIDs = [AudioObjectID](repeating: 0, count: count)
         guard AudioObjectGetPropertyData(system, &listAddress, 0, nil, &dataSize, &processIDs) == noErr else { return [] }
-
-        var result: [ActiveMic] = []
-        for processID in processIDs {
-            guard isRunningInput(processID), let bundleID = bundleID(processID), bundleID != ownBundleID else { continue }
-            result.append(ActiveMic(bundleID: bundleID))
-        }
-        return result
+        return processIDs
     }
 
     private static func isRunningInput(_ processID: AudioObjectID) -> Bool {
+        isRunning(processID, kAudioProcessPropertyIsRunningInput)
+    }
+
+    private static func isRunning(_ processID: AudioObjectID, _ selector: AudioObjectPropertySelector) -> Bool {
         var address = AudioObjectPropertyAddress(
-            mSelector: kAudioProcessPropertyIsRunningInput,
+            mSelector: selector,
             mScope: kAudioObjectPropertyScopeGlobal,
             mElement: kAudioObjectPropertyElementMain
         )

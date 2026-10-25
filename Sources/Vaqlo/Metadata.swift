@@ -54,6 +54,8 @@ struct SessionMetadata: Codable {
     var meetingUnlinked: Bool?
     /// mic-чанки, уже прошедшие подавление эха (`EchoCleaner`). nil — ни один.
     var echoCancelled: [String]?
+    /// Перезапуски захвата и смены устройств во время записи — для разбора потерь звука.
+    var audioEvents: [AudioEvent]?
 
     static func load(from url: URL) -> SessionMetadata? {
         guard let data = try? Data(contentsOf: url) else { return nil }

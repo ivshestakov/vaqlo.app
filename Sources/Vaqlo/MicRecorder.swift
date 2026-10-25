@@ -1,4 +1,5 @@
 import AVFoundation
+import CoreAudio
 import ObjCExceptionCatcher
 
 /// Запись микрофона через AVAudioEngine в чанки AAC.
@@ -27,12 +28,19 @@ final class MicRecorder {
     private var startedAt = Date()
     private var notifiedSilence = false
     private let bufferLock = NSLock()
+    private var events: AudioEventLog?
+    /// AirPods подключили/сняли — вход по умолчанию сменился. AVAudioEngine об этом
+    /// сообщает не всегда (и тогда тихо продолжает писать старый микрофон), поэтому
+    /// слушаем систему напрямую.
+    private var defaultInputListener: AudioPropertyListener?
+    private var inputChange: DispatchWorkItem?
 
     /// Бросает, только если микрофон недоступен прямо сейчас, — но recovery-механика
     /// (config-change observer + watchdog) уже установлена, так что при живой сессии
     /// вход продолжит подниматься сам, когда микрофон вернётся.
-    func start(directory: URL) throws {
+    func start(directory: URL, events: AudioEventLog? = nil) throws {
         self.directory = directory
+        self.events = events
         collected = []
         startedAt = Date()
         lastRealBufferAt = nil
@@ -54,6 +62,21 @@ final class MicRecorder {
                 }
                 self.notifyIfSilent()
             }
+        }
+
+        defaultInputListener = AudioPropertyListener(
+            object: AudioObjectID(kAudioObjectSystemObject),
+            selector: kAudioHardwarePropertyDefaultInputDevice,
+            queue: queue
+        ) { [weak self] in
+            // Смена устройства приходит пачкой событий — перезапускаемся после затишья.
+            guard let self else { return }
+            self.inputChange?.cancel()
+            let work = DispatchWorkItem { [weak self] in
+                self?.reconfigure(reason: "default input → \(AudioHardware.name(of: AudioHardware.defaultInput))")
+            }
+            self.inputChange = work
+            self.queue.asyncAfter(deadline: .now() + 0.8, execute: work)
         }
 
         try queue.sync { try setup() }
@@ -111,7 +134,7 @@ final class MicRecorder {
         guard format.sampleRate > 0, format.channelCount > 0 else {
             throw VaqloError(L("err.micUnavailable"))
         }
-        NSLog("MicRecorder: вход \(Int(format.sampleRate)) Гц / \(format.channelCount) кан.")
+        events?.add("mic", "input \(AudioHardware.name(of: AudioHardware.defaultInput)): \(Int(format.sampleRate)) Hz × \(format.channelCount)")
         let sink = ChunkedAudioFile(directory: directory, prefix: "mic",
                                     processingFormat: format, startIndex: collected.count)
         self.sink = sink
@@ -148,7 +171,7 @@ final class MicRecorder {
     /// Закрыть текущий чанк-файл и поднять микрофон заново (после смены конфигурации/останова).
     private func reconfigure(reason: String) {
         guard running else { return }
-        NSLog("MicRecorder: перезапуск (\(reason))")
+        events?.add("mic", "restart (\(reason))")
         teardownEngine()
         if let sink {
             sink.close()
@@ -158,7 +181,7 @@ final class MicRecorder {
         do {
             try setup()
         } catch {
-            NSLog("MicRecorder: не удалось перезапустить (\(error.localizedDescription)) — повтор через watchdog")
+            events?.add("mic", "restart failed (\(error.localizedDescription)), watchdog retries")
         }
     }
 
@@ -168,8 +191,12 @@ final class MicRecorder {
 
     func stop() -> [ChunkedAudioFile.ChunkInfo] {
         running = false
+        defaultInputListener?.remove()
+        defaultInputListener = nil
         DispatchQueue.main.async { self.watchdog?.invalidate(); self.watchdog = nil }
         return queue.sync {
+            inputChange?.cancel()
+            inputChange = nil
             teardownEngine()
             sink?.close()
             let all = collected + (sink?.chunks ?? [])

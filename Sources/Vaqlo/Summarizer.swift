@@ -19,7 +19,7 @@ final class Summarizer: ObservableObject {
 
     func summarize(_ session: Session) {
         guard !workingIDs.contains(session.id) else { return }
-        guard let modelFile = models.readySummaryModelFile else {
+        guard let model = models.readySummaryModel else {
             lastError = L("err.summaryModel")
             return
         }
@@ -42,7 +42,7 @@ final class Summarizer: ObservableObject {
         Task.detached(priority: .utility) {
             let result: Result<String, Error>
             do {
-                let summary = try SummaryJob(modelFile: modelFile, s: strings, meetingContext: context).run(lines: lines)
+                let summary = try SummaryJob(model: model, s: strings, meetingContext: context).run(lines: lines)
                 try summary.data(using: .utf8)?.write(to: Self.summaryURL(for: session))
                 result = .success(summary)
             } catch {
@@ -61,13 +61,13 @@ final class Summarizer: ObservableObject {
 
 /// Синхронная работа над одним саммари, выполняется вне главного потока.
 private struct SummaryJob {
-    let modelFile: URL
+    let model: SummaryModel
     let s: SummaryStrings
     /// Название, участники и описание встречи из календаря — только в финальный промпт.
     let meetingContext: String?
 
     /// Транскрипты длиннее лимита саммаризируются по кускам, потом сводятся.
-    private let chunkLimit = 20_000
+    private var chunkLimit: Int { model.chunkChars }
 
     func run(lines: [TranscriptLine]) throws -> String {
         let text = TranscriptGrouper.group(lines).map { group in
@@ -115,18 +115,24 @@ private struct SummaryJob {
             throw VaqloError("llama-completion not found inside the app — rebuild it")
         }
 
-        let arguments = [
-            "-m", modelFile.path,
+        var arguments = [
+            "-m", model.fileURL.path,
             "--jinja",
             "-st",  // один ход и выход: без этого свежий llama.cpp ждёт диалога и выдаёт пустоту
             "-sys", system,
             "-p", prompt,
             "-n", "1024",
             "--temp", "0.2",
-            "-c", "16384",
+            "-c", String(model.contextTokens),
             "--no-display-prompt",
             "--no-warmup",
         ]
+        if let name = model.chatTemplate {
+            guard let template = Bundle.main.url(forResource: name, withExtension: "jinja") else {
+                throw VaqloError("Chat template \(name).jinja not found inside the app — rebuild it")
+            }
+            arguments.insert(contentsOf: ["--chat-template-file", template.path], at: 2)
+        }
         let output = try ProcessRunner.run(cli, arguments)
         guard output.status == 0 else {
             throw VaqloError("llama-cli exited with code \(output.status): \(output.stderrText.suffix(300))")
@@ -135,6 +141,9 @@ private struct SummaryJob {
         let result = String(data: data, encoding: .utf8)?
             .replacingOccurrences(of: "[end of text]", with: "")
             .replacingOccurrences(of: "> EOF by user", with: "")
+            // Блок «размышлений» (Gemma 4 и др.), если шаблон его всё-таки пропустил.
+            .replacingOccurrences(of: #"<\|channel>thought[\s\S]*?(<channel\|>|$)"#, with: "", options: .regularExpression)
+            .replacingOccurrences(of: #"<think>[\s\S]*?(</think>|$)"#, with: "", options: .regularExpression)
             .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         guard !result.isEmpty else { throw VaqloError("The model returned an empty response") }
         return SummarySanitizer.clean(result)

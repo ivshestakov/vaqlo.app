@@ -33,6 +33,7 @@ mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources" "$APP/Contents/Extensio
 cp Resources/Info.plist "$APP/Contents/Info.plist"
 cp Resources/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
 cp -R Resources/Localizations/*.lproj "$APP/Contents/Resources/"  # запросы разрешений на 7 языках
+cp Resources/Templates/*.jinja "$APP/Contents/Resources/"          # шаблоны чата для LLM (Gemma 4 без «размышлений»)
 cp Resources/com.vaqlo.agent.plist "$APP/Contents/Library/LaunchAgents/com.vaqlo.agent.plist"
 cp .build/release/Vaqlo "$APP/Contents/MacOS/Vaqlo"
 cp "$WHISPER_CLI" "$APP/Contents/Resources/whisper-cli"

@@ -12,6 +12,10 @@ protocol DownloadableModel: Identifiable {
     /// SHA-256 и размер файла на закреплённом коммите: скачанное сверяется до установки.
     var sha256: String { get }
     var bytes: Int64 { get }
+    /// С какого объёма RAM модель уверенно работает рядом со встречей (Zoom/браузер) и системой.
+    var minMemoryGB: Int { get }
+    /// Качество внутри своего типа: из подходящих по памяти рекомендуется модель с большим rank.
+    var rank: Int { get }
 }
 
 /// Проверка целостности моделей. Ссылки закреплены на коммит репозитория (не `main`),
@@ -45,18 +49,22 @@ struct WhisperModel: DownloadableModel {
     let url: URL
     let sha256: String
     let bytes: Int64
+    let minMemoryGB: Int
+    let rank: Int
 
     var fileURL: URL { Storage.models.appendingPathComponent("ggml-\(id).bin") }
 
     static var presets: [WhisperModel] { [
         WhisperModel(
             id: "large-v3-turbo-q5_0",
-            title: "Large v3 Turbo (\(L("model.recommended")))",
+            title: "Large v3 Turbo",
             details: L("model.whisper.turbo"),
             sizeMB: 574,
             url: URL(string: "https://huggingface.co/ggerganov/whisper.cpp/resolve/5359861c739e955e79d9a303bcbc70fb988958b1/ggml-large-v3-turbo-q5_0.bin")!,
             sha256: "394221709cd5ad1f40c46e6031ca61bce88931e6e088c188294c6d5a55ffa7e2",
-            bytes: 574_041_195
+            bytes: 574_041_195,
+            minMemoryGB: 8,
+            rank: 2
         ),
         WhisperModel(
             id: "small-q5_1",
@@ -65,7 +73,9 @@ struct WhisperModel: DownloadableModel {
             sizeMB: 190,
             url: URL(string: "https://huggingface.co/ggerganov/whisper.cpp/resolve/5359861c739e955e79d9a303bcbc70fb988958b1/ggml-small-q5_1.bin")!,
             sha256: "ae85e4a935d7a567bd102fe55afc16bb595bdb618e11b2fc7591bc08120411bb",
-            bytes: 190_085_487
+            bytes: 190_085_487,
+            minMemoryGB: 4,
+            rank: 1
         ),
     ] }
 }
@@ -79,18 +89,45 @@ struct SummaryModel: DownloadableModel {
     let url: URL
     let sha256: String
     let bytes: Int64
+    let minMemoryGB: Int
+    let rank: Int
+    /// Окно контекста llama.cpp и сколько символов транскрипта влезает в один проход
+    /// (длиннее — кусками со сводкой). У больших моделей окно шире: встреча целиком.
+    let contextTokens: Int
+    let chunkChars: Int
+    /// Свой шаблон чата из бандла (Resources/Templates/<имя>.jinja) вместо встроенного в модель.
+    var chatTemplate: String? = nil
 
     var fileURL: URL { Storage.models.appendingPathComponent("\(id).gguf") }
 
     static var presets: [SummaryModel] { [
         SummaryModel(
+            id: "gemma-4-12b-it-qat-q4",
+            title: "Gemma 4 12B",
+            details: L("model.llm.gemma12"),
+            sizeMB: 6980,
+            // Официальная QAT-квантизация Google: обучена под q4, качество близко к bf16.
+            url: URL(string: "https://huggingface.co/google/gemma-4-12B-it-qat-q4_0-gguf/resolve/29d097773436b69ff9feafd636ab4cf873786537/gemma-4-12b-it-qat-q4_0.gguf")!,
+            sha256: "93567e57a8fe10b23569b9d9ec38cd005deedf71e29477c421a4b83f418a538b",
+            bytes: 6_975_879_296,
+            minMemoryGB: 16,
+            rank: 2,
+            contextTokens: 32_768,
+            chunkChars: 60_000,
+            chatTemplate: "gemma-4-12b-it-qat-q4"
+        ),
+        SummaryModel(
             id: "qwen3-4b-instruct-q4",
-            title: "Qwen3 4B (\(L("model.recommended")))",
+            title: "Qwen3 4B",
             details: L("model.llm.qwen"),
             sizeMB: 2400,
             url: URL(string: "https://huggingface.co/unsloth/Qwen3-4B-Instruct-2507-GGUF/resolve/a06e946bb6b655725eafa393f4a9745d460374c9/Qwen3-4B-Instruct-2507-Q4_K_M.gguf")!,
             sha256: "3605803b982cb64aead44f6c1b2ae36e3acdb41d8e46c8a94c6533bc4c67e597",
-            bytes: 2_497_281_120
+            bytes: 2_497_281_120,
+            minMemoryGB: 8,
+            rank: 1,
+            contextTokens: 16_384,
+            chunkChars: 20_000
         ),
     ] }
 }
@@ -140,18 +177,30 @@ final class ModelManager: NSObject, ObservableObject {
         return WhisperModel.presets.first { $0.id == id }
     }
 
-    /// Модель Whisper, готовая к использованию (активная, файл на месте).
+    /// Модель Whisper, готовая к использованию: активная, а если её файла нет —
+    /// лучшая из скачанных (не валить транскрибацию из-за удалённой/не докачанной модели).
     var readyModelFile: URL? {
-        guard let model = activeModel, downloadedIDs.contains(model.id) else { return nil }
-        return model.fileURL
+        Self.ready(WhisperModel.presets, activeKey: SettingsKeys.activeModel, downloaded: downloadedIDs)?.fileURL
     }
 
-    /// LLM для саммари, готовая к использованию.
-    var readySummaryModelFile: URL? {
-        let id = UserDefaults.standard.string(forKey: SettingsKeys.activeSummaryModel) ?? ""
-        guard let model = SummaryModel.presets.first(where: { $0.id == id }),
-              downloadedIDs.contains(model.id) else { return nil }
-        return model.fileURL
+    /// LLM для саммари, готовая к использованию (с тем же откатом на скачанную).
+    var readySummaryModel: SummaryModel? {
+        Self.ready(SummaryModel.presets, activeKey: SettingsKeys.activeSummaryModel, downloaded: downloadedIDs)
+    }
+
+    private static func ready<M: DownloadableModel>(_ presets: [M], activeKey: String, downloaded: Set<String>) -> M? {
+        let id = UserDefaults.standard.string(forKey: activeKey) ?? ""
+        if let active = presets.first(where: { $0.id == id }), downloaded.contains(active.id) { return active }
+        return presets.filter { downloaded.contains($0.id) }.max { $0.rank < $1.rank }
+    }
+
+    /// Только что скачанная модель становится активной: её скачали, чтобы ей пользоваться.
+    private func activate(_ id: String) {
+        if WhisperModel.presets.contains(where: { $0.id == id }) {
+            UserDefaults.standard.set(id, forKey: SettingsKeys.activeModel)
+        } else if SummaryModel.presets.contains(where: { $0.id == id }) {
+            UserDefaults.standard.set(id, forKey: SettingsKeys.activeSummaryModel)
+        }
     }
 
     func download(_ model: any DownloadableModel) {
@@ -230,6 +279,7 @@ extension ModelManager: URLSessionDownloadDelegate {
                 self.tasks[id] = nil
                 self.progress[id] = nil
                 self.errors[id] = error
+                if error == nil { self.activate(id) }
                 self.refresh()
             }
         }

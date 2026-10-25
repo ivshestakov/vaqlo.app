@@ -490,17 +490,35 @@ private struct ModelsSettings: View {
     @AppStorage(SettingsKeys.activeSummaryModel) private var activeSummaryModel = "qwen3-4b-instruct-q4"
     @AppStorage(SettingsKeys.autoSummarize) private var autoSummarize = false
 
+    /// Проверка Mac: пересчитывается при открытии вкладки и после скачиваний (место на диске).
+    @State private var hardware = HardwareProfile.current()
+
     var body: some View {
+        let whisper = WhisperModel.presets
+        let llm = SummaryModel.presets
         Form {
+            Section(L("set.models.mac")) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(L("set.models.macLine", hardware.chip, Int(hardware.memoryGB.rounded()),
+                           Int(hardware.freeDiskGB ?? 0)))
+                    if let w = ModelAdvisor.recommended(whisper, for: hardware),
+                       let s = ModelAdvisor.recommended(llm, for: hardware) {
+                        Text(L("set.models.advice", w.title, s.title))
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                }
+            }
             Section(L("set.models.whisper")) {
-                ForEach(WhisperModel.presets) { model in
-                    ModelRow(model: model, active: $activeModel)
+                ForEach(whisper) { model in
+                    ModelRow(model: model, active: $activeModel, fit: ModelAdvisor.fit(
+                        model, among: whisper, for: hardware, downloaded: models.downloadedIDs.contains(model.id)))
                 }
             }
             Section(L("set.models.llm")) {
                 Toggle(L("set.models.autosum"), isOn: $autoSummarize)
-                ForEach(SummaryModel.presets) { model in
-                    ModelRow(model: model, active: $activeSummaryModel)
+                ForEach(llm) { model in
+                    ModelRow(model: model, active: $activeSummaryModel, fit: ModelAdvisor.fit(
+                        model, among: llm, for: hardware, downloaded: models.downloadedIDs.contains(model.id)))
                 }
             }
             Section(L("set.models.voice")) {
@@ -513,6 +531,8 @@ private struct ModelsSettings: View {
             }
         }
         .formStyle(.grouped)
+        .onAppear { hardware = HardwareProfile.current() }
+        .onChange(of: models.downloadedIDs) { hardware = HardwareProfile.current() }
     }
 }
 
@@ -521,6 +541,7 @@ private struct ModelRow: View {
     @ObservedObject private var models = AppStore.shared.models
     let model: any DownloadableModel
     @Binding var active: String
+    var fit: ModelFit = .fits
 
     var body: some View {
         let downloaded = store.models.downloadedIDs.contains(model.id)
@@ -564,14 +585,38 @@ private struct ModelRow: View {
                     Button(L("model.download")) { store.models.download(model) }
                         .controlSize(.small)
                         .buttonStyle(.borderedProminent)
+                        .disabled(isNoDisk)
                 }
             }
             Text(model.details).font(.caption).foregroundStyle(.secondary)
+            fitBadge
             if let error = store.models.errors[model.id] {
                 Text(error).font(.caption).foregroundStyle(.red)
             }
         }
         .padding(.vertical, 2)
+    }
+
+    private var isNoDisk: Bool {
+        if case .noDisk = fit { return true }
+        return false
+    }
+
+    @ViewBuilder
+    private var fitBadge: some View {
+        switch fit {
+        case .recommended:
+            Label(L("model.fit.recommended"), systemImage: "checkmark.seal.fill")
+                .font(.caption).foregroundStyle(.green)
+        case .lowMemory(let needGB):
+            Label(L("model.fit.lowMemory", needGB), systemImage: "memorychip")
+                .font(.caption).foregroundStyle(.orange)
+        case .noDisk(let needGB):
+            Label(L("model.fit.noDisk", needGB), systemImage: "externaldrive.badge.exclamationmark")
+                .font(.caption).foregroundStyle(.red)
+        case .fits:
+            EmptyView()
+        }
     }
 }
 

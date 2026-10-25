@@ -40,7 +40,7 @@ struct OnboardingView: View {
                     done: false,
                     showCheck: false,
                     actionTitle: L("onb.openSettings")
-                ) { openPrivacy("Microphone") }
+                ) { openPrivacy("ScreenCapture") }  // «Запись экрана и системного звука»
 
                 Divider()
 
@@ -54,13 +54,21 @@ struct OnboardingView: View {
 
                 Divider()
 
-                row(
-                    icon: "person.wave.2.fill",
-                    title: L("onb.ax.title"),
-                    subtitle: L("onb.ax.sub"),
-                    done: axTrusted,
-                    actionTitle: L("onb.allow")
-                ) { AccessibilityHelper.prompt() }
+                // Универсальный доступ нужен только функции имён из Slack/Zoom (на паузе,
+                // выключена по умолчанию) — без неё такой чувствительный доступ не просим.
+                if UserDefaults.standard.bool(forKey: SettingsKeys.detectSpeakerNames) {
+                    row(
+                        icon: "person.wave.2.fill",
+                        title: L("onb.ax.title"),
+                        subtitle: L("onb.ax.sub"),
+                        done: axTrusted,
+                        actionTitle: L("onb.allow")
+                    ) { AccessibilityHelper.prompt() }
+
+                    Divider()
+                }
+
+                OnboardingModelsRow()
 
                 Divider()
 
@@ -161,5 +169,50 @@ struct OnboardingView: View {
     private func openPrivacy(_ section: String) {
         let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_\(section)")!
         NSWorkspace.shared.open(url)
+    }
+}
+
+/// Шаг онбординга: скачать модели, рекомендованные для этого Mac. Без них первая
+/// транскрибация падала с «нет модели», а выбор между моделями новичку ни о чём не говорит.
+private struct OnboardingModelsRow: View {
+    @ObservedObject private var models = AppStore.shared.models
+    private let hardware = HardwareProfile.current()
+
+    private var recommended: [any DownloadableModel] {
+        [ModelAdvisor.recommended(WhisperModel.presets, for: hardware) as (any DownloadableModel)?,
+         ModelAdvisor.recommended(SummaryModel.presets, for: hardware)].compactMap { $0 }
+    }
+
+    var body: some View {
+        let picks = recommended
+        let missing = picks.filter { !models.downloadedIDs.contains($0.id) }
+        let downloading = picks.compactMap { models.progress[$0.id] }
+        let sizeGB = Double(missing.reduce(0) { $0 + $1.bytes }) / 1_000_000_000
+        HStack(spacing: 12) {
+            Image(systemName: "cpu")
+                .frame(width: 24)
+                .foregroundStyle(missing.isEmpty ? .green : .secondary)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(L("onb.models.title")).bold()
+                Text(L("onb.models.sub", picks.map(\.title).joined(separator: " + ")))
+                    .font(.caption).foregroundStyle(.secondary)
+                ForEach(picks.compactMap { m in models.errors[m.id].map { (m.id, $0) } }, id: \.0) { _, error in
+                    Text(error).font(.caption).foregroundStyle(.red)
+                }
+            }
+            Spacer()
+            if missing.isEmpty {
+                Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
+            } else if !downloading.isEmpty {
+                ProgressView(value: downloading.reduce(0, +) / Double(downloading.count))
+                    .frame(width: 70)
+            } else {
+                Button(L("onb.models.download", sizeGB)) {
+                    for model in missing { models.download(model) }
+                }
+                .controlSize(.small)
+            }
+        }
+        .padding(12)
     }
 }

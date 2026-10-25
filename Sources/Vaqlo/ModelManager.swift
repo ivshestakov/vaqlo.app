@@ -95,6 +95,8 @@ struct SummaryModel: DownloadableModel {
     /// (длиннее — кусками со сводкой). У больших моделей окно шире: встреча целиком.
     let contextTokens: Int
     let chunkChars: Int
+    /// Лимит ответа. 1024 обрезал саммари на полуслове: кириллица дорогая в токенах.
+    var maxOutputTokens = 2048
     /// Свой шаблон чата из бандла (Resources/Templates/<имя>.jinja) вместо встроенного в модель.
     var chatTemplate: String? = nil
 
@@ -113,7 +115,8 @@ struct SummaryModel: DownloadableModel {
             minMemoryGB: 16,
             rank: 2,
             contextTokens: 32_768,
-            chunkChars: 60_000,
+            // ~3,6 знака на токен у русского/украинского: 90 тыс. ≈ 25K токенов + ответ — с запасом в 32K.
+            chunkChars: 90_000,
             chatTemplate: "gemma-4-12b-it-qat-q4"
         ),
         SummaryModel(

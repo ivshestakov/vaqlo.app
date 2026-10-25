@@ -121,7 +121,7 @@ private struct SummaryJob {
             "-st",  // один ход и выход: без этого свежий llama.cpp ждёт диалога и выдаёт пустоту
             "-sys", system,
             "-p", prompt,
-            "-n", "1024",
+            "-n", String(model.maxOutputTokens),
             "--temp", "0.2",
             "-c", String(model.contextTokens),
             "--no-display-prompt",

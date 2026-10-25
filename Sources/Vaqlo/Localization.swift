@@ -124,6 +124,7 @@ struct SummaryStrings {
     let actions: String
     let actionsHint: String
     let transcriptLabel: String
+    let context: String      // подпись блока «встреча из календаря»
     let condense: String     // инструкция для длинных транскриптов
 
     struct Localized {
@@ -139,6 +140,7 @@ struct SummaryStrings {
             decisions: "Рішення", decisionsHint: "(що вирішили; якщо рішень не було — пропусти розділ)",
             actions: "Дії", actionsHint: "(хто що має зробити і до якого терміну; якщо немає — пропусти розділ)",
             transcriptLabel: "Транскрипт:",
+            context: "Контекст зустрічі з календаря (імена учасників допоможуть зрозуміти, хто говорить; опис — це план, а не те, що сталося):",
             condense: "Стисни наступний фрагмент транскрипту зустрічі до ключових фактів, рішень і завдань (щільний конспект, без води):"
         ),
         .en: .init(
@@ -148,6 +150,7 @@ struct SummaryStrings {
             decisions: "Decisions", decisionsHint: "(what was decided; skip this section if there were none)",
             actions: "Action items", actionsHint: "(who does what and by when; skip if none)",
             transcriptLabel: "Transcript:",
+            context: "Meeting context from the calendar (participant names help tell who is speaking; the description is the plan, not what happened):",
             condense: "Condense the following meeting transcript fragment into key facts, decisions and tasks (dense notes, no fluff):"
         ),
         .fr: .init(
@@ -157,6 +160,7 @@ struct SummaryStrings {
             decisions: "Décisions", decisionsHint: "(ce qui a été décidé ; ignore cette section s’il n’y en a pas)",
             actions: "Actions", actionsHint: "(qui fait quoi et pour quand ; ignore s’il n’y en a pas)",
             transcriptLabel: "Transcription :",
+            context: "Contexte de la réunion depuis le calendrier (les noms des participants aident à savoir qui parle ; la description est le plan, pas ce qui s’est passé) :",
             condense: "Condense le fragment de transcription suivant en faits clés, décisions et tâches (notes denses, sans superflu) :"
         ),
         .es: .init(
@@ -166,6 +170,7 @@ struct SummaryStrings {
             decisions: "Decisiones", decisionsHint: "(qué se decidió; omite esta sección si no hubo)",
             actions: "Acciones", actionsHint: "(quién hace qué y para cuándo; omite si no hay)",
             transcriptLabel: "Transcripción:",
+            context: "Contexto de la reunión desde el calendario (los nombres de los participantes ayudan a saber quién habla; la descripción es el plan, no lo que ocurrió):",
             condense: "Condensa el siguiente fragmento de transcripción en hechos clave, decisiones y tareas (notas densas, sin relleno):"
         ),
         .pt: .init(
@@ -175,6 +180,7 @@ struct SummaryStrings {
             decisions: "Decisões", decisionsHint: "(o que foi decidido; omite esta secção se não houve)",
             actions: "Ações", actionsHint: "(quem faz o quê e até quando; omite se não houver)",
             transcriptLabel: "Transcrição:",
+            context: "Contexto da reunião a partir do calendário (os nomes dos participantes ajudam a saber quem fala; a descrição é o plano, não o que aconteceu):",
             condense: "Condensa o seguinte fragmento de transcrição em factos-chave, decisões e tarefas (notas densas, sem enrolação):"
         ),
         .de: .init(
@@ -184,6 +190,7 @@ struct SummaryStrings {
             decisions: "Entscheidungen", decisionsHint: "(was beschlossen wurde; lass den Abschnitt weg, wenn es keine gab)",
             actions: "Aufgaben", actionsHint: "(wer macht was bis wann; weglassen, wenn keine)",
             transcriptLabel: "Transkript:",
+            context: "Meeting-Kontext aus dem Kalender (Teilnehmernamen helfen zu erkennen, wer spricht; die Beschreibung ist der Plan, nicht das Ergebnis):",
             condense: "Verdichte den folgenden Transkript-Ausschnitt zu Kernfakten, Entscheidungen und Aufgaben (dichte Notizen, ohne Füllwörter):"
         ),
         .it: .init(
@@ -193,6 +200,7 @@ struct SummaryStrings {
             decisions: "Decisioni", decisionsHint: "(cosa è stato deciso; ometti la sezione se non ce ne sono)",
             actions: "Azioni", actionsHint: "(chi fa cosa ed entro quando; ometti se non ce ne sono)",
             transcriptLabel: "Trascrizione:",
+            context: "Contesto della riunione dal calendario (i nomi dei partecipanti aiutano a capire chi parla; la descrizione è il piano, non ciò che è successo):",
             condense: "Condensa il seguente frammento di trascrizione in fatti chiave, decisioni e attività (note dense, senza fronzoli):"
         ),
     ])
@@ -362,11 +370,27 @@ enum Strings {
         "notif.policy.never": t("Ніколи", "Never", "Jamais", "Nunca", "Nunca", "Nie", "Mai"),
         "meeting.row": t("Зустріч", "Meeting", "Réunion", "Reunión", "Reunião", "Meeting", "Riunione"),
         "meeting.participants": t("Учасники", "Participants", "Participants", "Participantes", "Participantes", "Teilnehmer", "Partecipanti"),
-        "meeting.largeGroup": t("Велика група людей (%d)", "Large group (%d)", "Grand groupe (%d)", "Grupo grande (%d)", "Grupo grande (%d)", "Große Gruppe (%d)", "Gruppo numeroso (%d)"),
         "meeting.untitled": t("Без назви", "Untitled", "Sans titre", "Sin título", "Sem título", "Ohne Titel", "Senza titolo"),
         "set.cal.section": t("Календар", "Calendar", "Calendrier", "Calendario", "Calendário", "Kalender", "Calendario"),
         "set.cal.label": t("Підписувати записи зустрічами з календаря", "Label recordings with calendar meetings", "Étiqueter avec les réunions du calendrier", "Etiquetar con reuniones del calendario", "Identificar com reuniões do calendário", "Aufnahmen mit Kalender-Meetings beschriften", "Etichetta con le riunioni del calendario"),
-        "set.cal.hint": t("Vaqlo бере назву зустрічі та учасників із системного календаря (зокрема підключеного Google). Більше 20 учасників — «велика група людей».", "Vaqlo takes the meeting title and participants from the system calendar (including a connected Google account). More than 20 participants → “large group”.", "Vaqlo prend le titre et les participants depuis le calendrier système (y compris un compte Google connecté). Plus de 20 participants → « grand groupe ».", "Vaqlo toma el título y los participantes del calendario del sistema (incluida una cuenta de Google conectada). Más de 20 participantes → «grupo grande».", "O Vaqlo usa o título e os participantes do calendário do sistema (incluindo uma conta Google ligada). Mais de 20 participantes → «grupo grande».", "Vaqlo übernimmt Titel und Teilnehmer aus dem Systemkalender (inkl. verbundenem Google-Konto). Mehr als 20 Teilnehmer → „große Gruppe“.", "Vaqlo prende titolo e partecipanti dal calendario di sistema (incluso un account Google collegato). Più di 20 partecipanti → «gruppo numeroso»."),
+        "set.cal.hint": t("Vaqlo бере з системного календаря назву зустрічі, час за розкладом, учасників і опис: показує їх у записі й на шкалі, передає в саммарі та підказує імена спікерів. Google Calendar підключається в «Системні налаштування → Облікові записи інтернету».", "Vaqlo takes the meeting title, scheduled time, participants and description from the system calendar: shows them on the recording and the timeline, passes them to the summary and suggests speaker names. Connect Google Calendar in System Settings → Internet Accounts.", "Vaqlo prend le titre, l’horaire prévu, les participants et la description dans le calendrier système : les affiche sur l’enregistrement et la frise, les transmet au résumé et suggère les noms des intervenants. Connectez Google Agenda dans Réglages Système → Comptes Internet.", "Vaqlo toma del calendario del sistema el título, el horario previsto, los participantes y la descripción: los muestra en la grabación y la línea de tiempo, los pasa al resumen y sugiere nombres de hablantes. Conecta Google Calendar en Ajustes del Sistema → Cuentas de Internet.", "O Vaqlo usa do calendário do sistema o título, o horário previsto, os participantes e a descrição: mostra-os na gravação e na linha do tempo, passa-os ao resumo e sugere nomes de oradores. Ligue o Google Calendar em Definições do Sistema → Contas de Internet.", "Vaqlo übernimmt aus dem Systemkalender Titel, geplante Zeit, Teilnehmer und Beschreibung: zeigt sie an der Aufnahme und auf der Zeitleiste, gibt sie an die Zusammenfassung weiter und schlägt Sprechernamen vor. Google Kalender in Systemeinstellungen → Internetaccounts verbinden.", "Vaqlo prende dal calendario di sistema titolo, orario previsto, partecipanti e descrizione: li mostra sulla registrazione e sulla timeline, li passa al riassunto e suggerisce i nomi dei relatori. Collega Google Calendar in Impostazioni di Sistema → Account Internet."),
+        "set.cal.denied": t("Доступ до календаря заборонено — увімкніть Vaqlo у Системних налаштуваннях", "Calendar access is denied — enable Vaqlo in System Settings", "Accès au calendrier refusé — activez Vaqlo dans Réglages Système", "Acceso al calendario denegado: activa Vaqlo en Ajustes del Sistema", "Acesso ao calendário negado — ative o Vaqlo nas Definições do Sistema", "Kalenderzugriff verweigert — Vaqlo in den Systemeinstellungen aktivieren", "Accesso al calendario negato — abilita Vaqlo in Impostazioni di Sistema"),
+        "set.cal.openSettings": t("Відкрити налаштування", "Open Settings", "Ouvrir les Réglages", "Abrir Ajustes", "Abrir Definições", "Einstellungen öffnen", "Apri Impostazioni"),
+        "set.cal.timeline": t("Показувати зустрічі з календаря на шкалі", "Show calendar meetings on the timeline", "Afficher les réunions du calendrier sur la frise", "Mostrar reuniones del calendario en la línea de tiempo", "Mostrar reuniões do calendário na linha do tempo", "Kalender-Meetings auf der Zeitleiste zeigen", "Mostra le riunioni del calendario sulla timeline"),
+        "meeting.scheduled": t("За календарем", "Scheduled", "Prévu", "Programada", "Agendada", "Geplant", "Programmata"),
+        "meeting.organizer": t("Організатор", "Organizer", "Organisateur", "Organizador", "Organizador", "Organisator", "Organizzatore"),
+        "meeting.agenda": t("Опис", "Description", "Description", "Descripción", "Descrição", "Beschreibung", "Descrizione"),
+        "meeting.openCal": t("Відкрити в Календарі", "Open in Calendar", "Ouvrir dans Calendrier", "Abrir en Calendario", "Abrir no Calendário", "Im Kalender öffnen", "Apri in Calendario"),
+        "meeting.join": t("Посилання на дзвінок", "Call link", "Lien de l’appel", "Enlace de la llamada", "Link da chamada", "Anruf-Link", "Link della chiamata"),
+        "meeting.change": t("Змінити", "Change", "Modifier", "Cambiar", "Alterar", "Ändern", "Cambia"),
+        "meeting.link": t("Прив’язати до зустрічі", "Link to a meeting", "Lier à une réunion", "Vincular a una reunión", "Associar a uma reunião", "Mit Meeting verknüpfen", "Collega a una riunione"),
+        "meeting.unlink": t("Це не зустріч", "Not a meeting", "Pas une réunion", "No es una reunión", "Não é uma reunião", "Kein Meeting", "Non è una riunione"),
+        "meeting.none": t("Не прив’язано", "Not linked", "Non liée", "Sin vincular", "Não associada", "Nicht verknüpft", "Non collegata"),
+        "meeting.noCandidates": t("У цей час у календарі нічого немає", "No calendar events at this time", "Aucun événement à ce moment", "No hay eventos en ese horario", "Sem eventos nesse horário", "Keine Termine zu dieser Zeit", "Nessun evento in quell’orario"),
+        "meeting.peopleCount": t("%d учасників", "%d participants", "%d participants", "%d participantes", "%d participantes", "%d Teilnehmer", "%d partecipanti"),
+        "meeting.statusHelp": t("Закреслені — відхилили запрошення, «?» — під питанням", "Struck through — declined; “?” — tentative", "Barré — a refusé ; « ? » — peut-être", "Tachado — rechazó; «?» — quizá", "Riscado — recusou; «?» — talvez", "Durchgestrichen — abgelehnt; „?“ — vielleicht", "Barrato — ha rifiutato; «?» — forse"),
+        "meeting.notRecorded": t("не записано", "not recorded", "non enregistrée", "no grabada", "não gravada", "nicht aufgenommen", "non registrata"),
+        "rename.suggestions": t("З календаря:", "From the calendar:", "Depuis le calendrier :", "Del calendario:", "Do calendário:", "Aus dem Kalender:", "Dal calendario:"),
         "onb.cal.title": t("Календар", "Calendar", "Calendrier", "Calendario", "Calendário", "Kalender", "Calendario"),
         "onb.cal.sub": t("Щоб підписувати записи назвою зустрічі та учасниками (необов’язково)", "To label recordings with the meeting title and participants (optional)", "Pour étiqueter avec le titre et les participants (facultatif)", "Para etiquetar con el título y los participantes (opcional)", "Para identificar com o título e participantes (opcional)", "Um Aufnahmen mit Titel und Teilnehmern zu beschriften (optional)", "Per etichettare con titolo e partecipanti (opzionale)"),
         "common.granted": t("Доступ надано", "Access granted", "Accès autorisé", "Acceso concedido", "Acesso concedido", "Zugriff erteilt", "Accesso concesso"),

@@ -6,6 +6,10 @@
 	     Core Audio taps, перечисление процессов, глобальный хоткей, запуск бинарей). -->
 	<key>com.apple.security.device.audio-input</key>
 	<true/>
+	<!-- Чтение Календаря (EventKit) под Hardened Runtime: без этого ключа macOS молча
+	     отказывает в доступе и даже не показывает запрос. -->
+	<key>com.apple.security.personal-information.calendars</key>
+	<true/>
 	<!-- Общий контейнер с виджетом Control Center (статус записи). -->
 	<key>com.apple.security.application-groups</key>
 	<array>

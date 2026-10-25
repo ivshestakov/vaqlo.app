@@ -37,11 +37,12 @@ final class Summarizer: ObservableObject {
         workingIDs.insert(session.id)
         lastError = nil
         let strings = LocalizationManager.shared.summary
+        let context = session.loadMetadata()?.meeting?.promptContext()
 
         Task.detached(priority: .utility) {
             let result: Result<String, Error>
             do {
-                let summary = try SummaryJob(modelFile: modelFile, s: strings).run(lines: lines)
+                let summary = try SummaryJob(modelFile: modelFile, s: strings, meetingContext: context).run(lines: lines)
                 try summary.data(using: .utf8)?.write(to: Self.summaryURL(for: session))
                 result = .success(summary)
             } catch {
@@ -62,6 +63,8 @@ final class Summarizer: ObservableObject {
 private struct SummaryJob {
     let modelFile: URL
     let s: SummaryStrings
+    /// Название, участники и описание встречи из календаря — только в финальный промпт.
+    let meetingContext: String?
 
     /// Транскрипты длиннее лимита саммаризируются по кускам, потом сводятся.
     private let chunkLimit = 20_000
@@ -100,7 +103,7 @@ private struct SummaryJob {
 
             ## \(s.actions)
             \(s.actionsHint)
-
+            \(meetingContext.map { "\n\(s.context)\n\($0)\n" } ?? "")
             \(s.transcriptLabel)
             \(text)
             """

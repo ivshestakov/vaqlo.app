@@ -14,6 +14,9 @@ struct SessionDetailView: View {
     @State private var confirmDelete = false
     @State private var exporting = false
     @State private var renameTarget: RenameTarget?
+    /// События календаря около сессии — для меню «сменить встречу». Считаются в load(),
+    /// а не в body: деталка перерисовывается на каждый тик плеера.
+    @State private var meetingCandidates: [CalendarEvent] = []
     @StateObject private var player = SessionAudioPlayer()
 
     struct RenameTarget: Identifiable {
@@ -37,7 +40,7 @@ struct SessionDetailView: View {
         .onChange(of: store.transcriptRevision) { load() }
         .onDisappear { player.teardown() }
         .sheet(item: $renameTarget) { target in
-            RenameSpeakerSheet(target: target) { newName in
+            RenameSpeakerSheet(target: target, suggestions: nameSuggestions) { newName in
                 store.renameSpeaker(in: session, from: target.from, to: newName)
             }
         }
@@ -62,7 +65,7 @@ struct SessionDetailView: View {
             HStack {
                 VStack(alignment: .leading, spacing: 1) {
                     if let meeting = metadata?.meeting {
-                        Text(meetingTitle(meeting)).font(.title3.bold()).lineLimit(1)
+                        Text(meeting.displayTitle).font(.title3.bold()).lineLimit(1)
                         Text(session.start, format: .dateTime.day().month().hour().minute())
                             .font(.caption).foregroundStyle(.secondary)
                     } else {
@@ -142,20 +145,7 @@ struct SessionDetailView: View {
 
     private var infoCard: some View {
         Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 5) {
-            if let meeting = metadata?.meeting {
-                GridRow {
-                    Text(L("meeting.row")).foregroundStyle(.secondary)
-                    Text(meetingTitle(meeting)).bold().lineLimit(1)
-                }
-                if !meeting.isLargeGroup, !meeting.attendees.isEmpty {
-                    GridRow {
-                        Text(L("meeting.participants")).foregroundStyle(.secondary)
-                        Text(meeting.attendees.joined(separator: ", "))
-                            .lineLimit(2)
-                            .help(meeting.attendees.joined(separator: ", "))
-                    }
-                }
-            }
+            meetingRows
             GridRow {
                 Text(L("info.type")).foregroundStyle(.secondary)
                 Text(classification).bold()
@@ -183,6 +173,134 @@ struct SessionDetailView: View {
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(.quaternary.opacity(0.4))
+    }
+
+    // MARK: - Встреча из календаря
+
+    @ViewBuilder
+    private var meetingRows: some View {
+        if let meeting = metadata?.meeting {
+            GridRow {
+                Text(L("meeting.row")).foregroundStyle(.secondary)
+                HStack(spacing: 6) {
+                    Text(meeting.displayTitle).bold().lineLimit(1).help(meeting.displayTitle)
+                    Spacer(minLength: 4)
+                    meetingMenu
+                }
+            }
+            if let start = meeting.scheduledStart, let end = meeting.scheduledEnd {
+                GridRow {
+                    Text(L("meeting.scheduled")).foregroundStyle(.secondary)
+                    HStack(spacing: 6) {
+                        Text("\(start, format: .dateTime.hour().minute())–\(end, format: .dateTime.hour().minute())")
+                        if let calendar = meeting.calendarName {
+                            Text("· \(calendar)").foregroundStyle(.secondary).lineLimit(1)
+                        }
+                        if meeting.eventID != nil {
+                            Button { CalendarService.openInCalendar(meeting) } label: {
+                                Image(systemName: "calendar")
+                            }
+                            .buttonStyle(.borderless)
+                            .help(L("meeting.openCal"))
+                        }
+                        if let link = meeting.conferenceURL.flatMap(URL.init(string:)) {
+                            Link(destination: link) { Image(systemName: "video") }
+                                .help(L("meeting.join"))
+                        }
+                    }
+                }
+            }
+            if let organizer = meeting.organizer {
+                GridRow {
+                    Text(L("meeting.organizer")).foregroundStyle(.secondary)
+                    Text(organizer).lineLimit(1)
+                }
+            }
+            let others = meeting.others
+            if !others.isEmpty {
+                GridRow {
+                    Text(L("meeting.participants")).foregroundStyle(.secondary)
+                    Text(participantsText(others))
+                        .lineLimit(3)
+                        .help(L("meeting.statusHelp"))
+                }
+            }
+            if let notes = meeting.notes {
+                GridRow {
+                    Text(L("meeting.agenda")).foregroundStyle(.secondary)
+                    Text(notes).lineLimit(2).help(notes)
+                }
+            }
+        } else if CalendarService.isAuthorized, session.state != .recording {
+            GridRow {
+                Text(L("meeting.row")).foregroundStyle(.secondary)
+                HStack(spacing: 6) {
+                    Text(L("meeting.none")).foregroundStyle(.tertiary)
+                    Spacer(minLength: 4)
+                    meetingMenu
+                }
+            }
+        }
+    }
+
+    /// Ручная привязка: события календаря около записи + «это не встреча».
+    private var meetingMenu: some View {
+        let linkedID = metadata?.meeting?.eventID
+        return Menu {
+            if meetingCandidates.isEmpty {
+                Text(L("meeting.noCandidates"))
+            }
+            ForEach(meetingCandidates) { event in
+                Button {
+                    store.setMeeting(for: session, eventID: event.id)
+                } label: {
+                    let title = "\(event.start.formatted(date: .omitted, time: .shortened)) · \(event.title.isEmpty ? L("meeting.untitled") : event.title)"
+                    if event.id == linkedID {
+                        Label(title, systemImage: "checkmark")
+                    } else {
+                        Text(title)
+                    }
+                }
+            }
+            if metadata?.meeting != nil {
+                Divider()
+                Button(L("meeting.unlink")) { store.setMeeting(for: session, eventID: nil) }
+            }
+        } label: {
+            Text(metadata?.meeting == nil ? L("meeting.link") : L("meeting.change"))
+        }
+        .menuStyle(.borderlessButton)
+        .fixedSize()
+        .font(.caption)
+    }
+
+    /// Участники через запятую: отклонившие — зачёркнуты, «под вопросом» — с «?».
+    private func participantsText(_ people: [MeetingAttendee]) -> AttributedString {
+        let limit = MeetingInfo.largeGroupThreshold
+        var result = AttributedString()
+        if people.count > limit {
+            result += AttributedString(L("meeting.peopleCount", people.count) + ": ")
+        }
+        for (index, person) in people.prefix(limit).enumerated() {
+            if index > 0 { result += AttributedString(", ") }
+            var name = AttributedString(person.displayName + (person.status == .tentative ? "?" : ""))
+            if person.status == .declined {
+                name.strikethroughStyle = .single
+                name.foregroundColor = .secondary
+            }
+            result += name
+        }
+        if people.count > limit { result += AttributedString(" …") }
+        return result
+    }
+
+    /// Подсказки для переименования спикера: участники встречи, ещё не названные в транскрипте.
+    private var nameSuggestions: [String] {
+        let used = Set(lines.compactMap(\.speaker))
+        return (metadata?.meeting?.others ?? [])
+            .filter { $0.status != .declined }
+            .map(\.displayName)
+            .filter { !used.contains($0) }
     }
 
     // MARK: - Плеер
@@ -289,12 +407,6 @@ struct SessionDetailView: View {
 
     private var classification: String {
         SessionClassifier.classify(metadata: metadata, lines: session.state == .done ? lines : nil)
-    }
-
-    private func meetingTitle(_ meeting: MeetingInfo) -> String {
-        if meeting.isLargeGroup { return L("meeting.largeGroup", meeting.attendeeCount) }
-        let title = (meeting.title ?? "").trimmingCharacters(in: .whitespaces)
-        return title.isEmpty ? L("meeting.untitled") : title
     }
 
     private var appsLine: String {
@@ -476,6 +588,19 @@ struct SessionDetailView: View {
 
     private func load() {
         metadata = session.loadMetadata()
+        // Кандидаты — с запасом в полчаса: запись могла начаться раньше/позже встречи.
+        let pad: TimeInterval = 1800
+        meetingCandidates = CalendarService.fetch(
+            from: session.start.addingTimeInterval(-pad),
+            to: (session.end ?? Date()).addingTimeInterval(pad)
+        ).map {
+            CalendarEvent(
+                id: $0.calendarItemIdentifier, title: ($0.title ?? "").trimmingCharacters(in: .whitespaces),
+                start: $0.startDate, end: $0.endDate, color: $0.calendar?.color ?? .systemBlue,
+                attendeeCount: $0.attendees?.count ?? 0
+            )
+        }
+        .sorted { $0.start < $1.start }
         guard session.state == .done,
               let data = try? Data(contentsOf: session.transcriptJSON) else {
             lines = []
@@ -503,12 +628,14 @@ struct SessionDetailView: View {
 /// Диалог переименования спикера.
 struct RenameSpeakerSheet: View {
     let target: SessionDetailView.RenameTarget
+    var suggestions: [String] = []
     let onSave: (String) -> Void
     @Environment(\.dismiss) private var dismiss
     @State private var name: String
 
-    init(target: SessionDetailView.RenameTarget, onSave: @escaping (String) -> Void) {
+    init(target: SessionDetailView.RenameTarget, suggestions: [String] = [], onSave: @escaping (String) -> Void) {
         self.target = target
+        self.suggestions = suggestions
         self.onSave = onSave
         _name = State(initialValue: target.to)
     }
@@ -520,6 +647,21 @@ struct RenameSpeakerSheet: View {
                 .textFieldStyle(.roundedBorder)
                 .frame(width: 260)
                 .onSubmit(save)
+            if !suggestions.isEmpty {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(L("rename.suggestions")).font(.caption).foregroundStyle(.secondary)
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 6) {
+                            ForEach(suggestions, id: \.self) { suggestion in
+                                Button(suggestion) { name = suggestion }
+                                    .buttonStyle(.bordered)
+                                    .controlSize(.small)
+                            }
+                        }
+                    }
+                }
+                .frame(width: 260, alignment: .leading)
+            }
             Text(L("rename.hint"))
                 .font(.caption)
                 .foregroundStyle(.secondary)

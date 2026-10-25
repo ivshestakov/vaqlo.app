@@ -206,6 +206,7 @@ private struct GeneralSettings: View {
     @State private var launchAtLogin = CrashGuard.isEnabled
     @State private var accessibilityTrusted = AccessibilityHelper.isTrusted
     @State private var calendarAuthorized = CalendarService.isAuthorized
+    @AppStorage(SettingsKeys.calendarOnTimeline) private var calendarOnTimeline = true
 
     var body: some View {
         Form {
@@ -278,12 +279,18 @@ private struct GeneralSettings: View {
                 HStack {
                     Image(systemName: calendarAuthorized ? "checkmark.circle.fill" : "calendar.badge.plus")
                         .foregroundStyle(calendarAuthorized ? Color.green : Color.orange)
-                    Text(calendarAuthorized ? L("common.granted") : L("set.cal.label"))
+                    Text(calendarAuthorized ? L("common.granted")
+                         : CalendarService.isDenied ? L("set.cal.denied") : L("set.cal.label"))
                     Spacer()
                     if !calendarAuthorized {
-                        Button(L("onb.allow")) { CalendarService.requestAccess() }
-                            .controlSize(.small)
+                        Button(CalendarService.isDenied ? L("set.cal.openSettings") : L("onb.allow")) {
+                            CalendarService.requestAccess()
+                        }
+                        .controlSize(.small)
                     }
+                }
+                if calendarAuthorized {
+                    Toggle(L("set.cal.timeline"), isOn: $calendarOnTimeline)
                 }
                 Text(L("set.cal.hint")).font(.caption).foregroundStyle(.secondary)
             }
@@ -375,7 +382,10 @@ private struct GeneralSettings: View {
         .formStyle(.grouped)
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             accessibilityTrusted = AccessibilityHelper.isTrusted
+            let wasAuthorized = calendarAuthorized
             calendarAuthorized = CalendarService.isAuthorized
+            // Доступ включили в Системных настройках (после отказа) — callback запроса не придёт.
+            if calendarAuthorized, !wasAuthorized { AppStore.shared.calendarAccessGranted() }
         }
     }
 

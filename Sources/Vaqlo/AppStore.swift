@@ -102,6 +102,7 @@ final class AppStore: ObservableObject {
         }
 
         syncControlCenterState()
+        backfillMeetings()
     }
 
     func toggleRecording() {
@@ -278,6 +279,51 @@ final class AppStore: ObservableObject {
             .data(using: .utf8)?.write(to: session.transcriptMD)
 
         transcriptRevision += 1
+    }
+
+    // MARK: - Календарь
+
+    /// Доступ к календарю только что выдан: перечитать шкалу и подписать старые записи.
+    func calendarAccessGranted() {
+        // Хранилище, созданное до выдачи доступа, иначе может продолжать отдавать пустоту.
+        CalendarService.store.reset()
+        CalendarFeed.shared.invalidate()
+        backfillMeetings()
+    }
+
+    /// Подбирает встречи для записей без неё (сделанных до выдачи доступа к календарю).
+    func backfillMeetings() {
+        MeetingBackfill.run(sessions: library.sessions) { [weak self] updated in
+            guard let self, updated > 0 else { return }
+            self.library.rescan()
+            self.transcriptRevision += 1
+        }
+    }
+
+    /// Ручная привязка сессии к событию календаря; nil — «это не встреча».
+    func setMeeting(for session: Session, eventID: String?) {
+        guard var metadata = session.loadMetadata() else { return }
+        if let eventID, let event = CalendarService.event(withID: eventID) {
+            metadata.meeting = CalendarService.info(for: event, manual: true)
+            metadata.meetingUnlinked = nil
+        } else {
+            metadata.meeting = nil
+            metadata.meetingUnlinked = true
+        }
+        metadata.write(to: session.metadataURL)
+        refreshTranscriptMarkdown(session)
+        library.rescan()
+        transcriptRevision += 1
+    }
+
+    /// transcript.md содержит шапку встречи — пересобираем после смены привязки.
+    private func refreshTranscriptMarkdown(_ session: Session) {
+        guard let data = try? Data(contentsOf: session.transcriptJSON) else { return }
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        guard let lines = try? decoder.decode([TranscriptLine].self, from: data) else { return }
+        try? Transcriber.markdown(for: session, lines: lines)
+            .data(using: .utf8)?.write(to: session.transcriptMD)
     }
 
     // MARK: - Синхронизация с Control Center

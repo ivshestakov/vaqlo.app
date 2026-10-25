@@ -14,6 +14,9 @@ struct Session: Identifiable, Equatable {
     let start: Date
     var end: Date?
     var state: State
+    /// Встреча из календаря (из session.json) — для подписи блока и подсветки события на шкале.
+    var meetingTitle: String?
+    var meetingEventID: String?
 
     var duration: TimeInterval { (end ?? Date()).timeIntervalSince(start) }
 
@@ -204,6 +207,7 @@ final class SessionLibrary: ObservableObject {
                 guard let start = dayFormatter.date(from: id) else { continue }
 
                 var end: Date?
+                var meeting: MeetingInfo?
                 if let data = try? Data(contentsOf: dir.appendingPathComponent("session.json")) {
                     let decoder = JSONDecoder()
                     decoder.dateDecodingStrategy = .iso8601
@@ -211,6 +215,7 @@ final class SessionLibrary: ObservableObject {
                         // end == nil у прерванной записи — берём конец последнего чанка.
                         end = metadata.end
                             ?? (metadata.micChunks + metadata.systemChunks).map(\.end).max()
+                        meeting = metadata.meeting
                     }
                 }
 
@@ -225,7 +230,10 @@ final class SessionLibrary: ObservableObject {
                 } else {
                     state = .pending
                 }
-                result.append(Session(id: id, directory: dir, start: start, end: end, state: state))
+                result.append(Session(
+                    id: id, directory: dir, start: start, end: end, state: state,
+                    meetingTitle: meeting?.displayTitle, meetingEventID: meeting?.eventID
+                ))
             }
         }
         sessions = result.sorted { $0.start > $1.start }

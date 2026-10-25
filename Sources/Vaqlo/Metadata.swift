@@ -50,6 +50,8 @@ struct SessionMetadata: Codable {
     var activeSpeakers: [ActiveSpeakerSample]?
     /// Встреча из календаря (название + участники), если нашлась. nil в старых записях.
     var meeting: MeetingInfo?
+    /// Пользователь отвязал встречу («это не встреча») — автоподбор больше не трогает.
+    var meetingUnlinked: Bool?
     /// mic-чанки, уже прошедшие подавление эха (`EchoCleaner`). nil — ни один.
     var echoCancelled: [String]?
 

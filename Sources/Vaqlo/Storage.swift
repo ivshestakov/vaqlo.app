@@ -63,6 +63,7 @@ enum SettingsKeys {
     static let appLanguage = "appLanguage"             // код языка интерфейса (uk/en/…)
     static let detectSpeakerNames = "detectSpeakerNames" // читать имена говорящих из Slack/Zoom
     static let appPolicies = "appPolicies"             // JSON [TriggerApp]: приложение → политика записи
+    static let calendarOnTimeline = "calendarOnTimeline" // показывать события календаря на шкале
 
     static func registerDefaults() {
         UserDefaults.standard.register(defaults: [
@@ -82,6 +83,7 @@ enum SettingsKeys {
             meetingDetection: 1,
             meetingAutoStop: true,
             detectSpeakerNames: true,
+            calendarOnTimeline: true,
         ])
     }
 }

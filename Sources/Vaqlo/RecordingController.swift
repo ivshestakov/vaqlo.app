@@ -61,15 +61,30 @@ final class RecordingController {
 
     private func writeMetadata(end: Date?) {
         guard let dir = sessionDirectory, let start = sessionStart else { return }
-        SessionMetadata(
+        let url = dir.appendingPathComponent("session.json")
+        var metadata = SessionMetadata(
             start: start,
             end: end,
             micChunks: mic.chunksSnapshot,
             systemChunks: system.chunksSnapshot,
             frontmostApps: appSampler.snapshot,
-            activeSpeakers: speakerSampler.snapshot,
-            meeting: end.flatMap { CalendarService.meeting(start: start, end: $0) }
-        ).write(to: dir.appendingPathComponent("session.json"))
+            activeSpeakers: speakerSampler.snapshot
+        )
+        applyMeeting(to: &metadata, start: start, end: end ?? Date(), existing: url)
+        metadata.write(to: url)
+    }
+
+    /// Встреча подбирается и во время записи (видно в деталке сразу), но ручной выбор
+    /// пользователя — привязка или «это не встреча» — не перезаписывается.
+    private func applyMeeting(to metadata: inout SessionMetadata, start: Date, end: Date, existing url: URL) {
+        let previous = SessionMetadata.load(from: url)
+        if previous?.meetingUnlinked == true {
+            metadata.meetingUnlinked = true
+        } else if let manual = previous?.meeting, manual.manual == true {
+            metadata.meeting = manual
+        } else {
+            metadata.meeting = CalendarService.meeting(start: start, end: end)
+        }
     }
 
     func stop() {
@@ -83,16 +98,17 @@ final class RecordingController {
 
         if let dir = sessionDirectory, let start = sessionStart {
             let end = Date()
-            let metadata = SessionMetadata(
+            let url = dir.appendingPathComponent("session.json")
+            var metadata = SessionMetadata(
                 start: start,
                 end: end,
                 micChunks: micChunks,
                 systemChunks: sysChunks,
                 frontmostApps: appTimeline,
-                activeSpeakers: speakerTimeline,
-                meeting: CalendarService.meeting(start: start, end: end)
+                activeSpeakers: speakerTimeline
             )
-            metadata.write(to: dir.appendingPathComponent("session.json"))
+            applyMeeting(to: &metadata, start: start, end: end, existing: url)
+            metadata.write(to: url)
             // Звонок через динамики → собеседники есть и в микрофоне; чистим, пока запись свежая.
             EchoCleaner.cleanInBackground(directory: dir)
         }

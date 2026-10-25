@@ -54,23 +54,33 @@ install_name_tool -add_rpath "@executable_path/../Frameworks" "$APP/Contents/Mac
 [[ -f "Resources/Vaqlo.provisionprofile" ]] && cp "Resources/Vaqlo.provisionprofile" "$APP/Contents/embedded.provisionprofile"
 [[ -f "Resources/VaqloControl.provisionprofile" ]] && cp "Resources/VaqloControl.provisionprofile" "$APP/Contents/Extensions/VaqloControl.appex/Contents/embedded.provisionprofile"
 
-SIGN=(codesign --force --timestamp --options runtime --sign "$DEV_ID")
+# Первый запрос к timestamp.apple.com после паузы иногда возвращается пустым
+# («A timestamp was expected but was not found») — повторяем подпись.
+sign() {
+    local attempt
+    for attempt in 1 2 3 4; do
+        codesign --force --timestamp --options runtime --sign "$DEV_ID" "$@" && return 0
+        echo "  ↻ подпись без timestamp, повтор ($attempt)…" >&2
+        sleep 5
+    done
+    return 1
+}
 
 echo "▸ Подпись изнутри-наружу"
 # 0) Sparkle.framework — вложенный код подписываем изнутри
 SP="$APP/Contents/Frameworks/Sparkle.framework/Versions/B"
-for xpc in "$SP/XPCServices/"*.xpc; do [[ -e "$xpc" ]] && "${SIGN[@]}" "$xpc"; done
-"${SIGN[@]}" "$SP/Autoupdate"
-"${SIGN[@]}" "$SP/Updater.app"
-"${SIGN[@]}" "$APP/Contents/Frameworks/Sparkle.framework"
+for xpc in "$SP/XPCServices/"*.xpc; do [[ -e "$xpc" ]] && sign "$xpc"; done
+sign "$SP/Autoupdate"
+sign "$SP/Updater.app"
+sign "$APP/Contents/Frameworks/Sparkle.framework"
 # 1) вложенные исполняемые бинари
-"${SIGN[@]}" "$APP/Contents/Resources/whisper-cli"
-"${SIGN[@]}" "$APP/Contents/Resources/llama-completion"
+sign "$APP/Contents/Resources/whisper-cli"
+sign "$APP/Contents/Resources/llama-completion"
 # 2) виджет Control Center
-"${SIGN[@]}" --entitlements ControlExtension/VaqloControl.entitlements \
+sign --entitlements ControlExtension/VaqloControl.entitlements \
     "$APP/Contents/Extensions/VaqloControl.appex"
 # 3) само приложение (запечатывает вложенное)
-"${SIGN[@]}" --entitlements Resources/Vaqlo.entitlements "$APP"
+sign --entitlements Resources/Vaqlo.entitlements "$APP"
 
 echo "▸ Проверка подписи"
 codesign --verify --deep --strict --verbose=2 "$APP"
@@ -86,7 +96,11 @@ fi
 
 echo "▸ Сборка красивого DMG (фон + стрелка + раскладка)"
 scripts/make_dmg.sh
-codesign --force --timestamp --sign "$DEV_ID" "$DMG"
+for attempt in 1 2 3 4; do
+    codesign --force --timestamp --sign "$DEV_ID" "$DMG" && break
+    [[ $attempt == 4 ]] && exit 1
+    sleep 5
+done
 
 if [[ "${SKIP_NOTARIZE:-0}" != "1" ]]; then
     echo "▸ Нотаризация DMG"

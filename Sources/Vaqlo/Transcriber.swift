@@ -339,6 +339,18 @@ extension Transcriber {
         var md = "# \(L("md.recording")) \(day.string(from: session.start)) \(time.string(from: session.start))"
         if let end = session.end { md += "–\(time.string(from: end))" }
         md += "\n\n"
+        if let meeting = session.loadMetadata()?.meeting {
+            md += "**\(L("meeting.row")):** \(meeting.displayTitle)"
+            if let start = meeting.scheduledStart, let end = meeting.scheduledEnd {
+                md += " (\(time.string(from: start))–\(time.string(from: end)))"
+            }
+            md += "\n"
+            let names = meeting.others.filter { $0.status != .declined }.map(\.displayName)
+            if !names.isEmpty {
+                md += "**\(L("meeting.participants")):** \(names.joined(separator: ", "))\n"
+            }
+            md += "\n"
+        }
         if lines.isEmpty {
             md += "_\(L("transcript.empty"))_\n"
         }

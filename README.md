@@ -11,8 +11,11 @@ stays on your Mac.
   (Zoom/Meet/Teams grabbing the mic) with per-app policies.
 - **Transcribe** — bundled `whisper.cpp` (Metal) with VAD; auto language detection.
 - **Speakers** — local diarization (FluidAudio / CoreML) + a voice library that
-  learns names once and recognizes them across meetings. Meeting titles and
-  participants pulled from the system Calendar (incl. a connected Google account).
+  learns names once and recognizes them across meetings.
+- **Calendar** — recordings are matched to events from the system Calendar (incl. Google
+  via Internet Accounts): title, scheduled time, organizer, participants with RSVP status,
+  call link, description. Meetings are drawn on the timeline next to recordings, feed the
+  summary prompt and suggest speaker names. Re-link or unlink a meeting by hand.
 - **Work with it** — day/week timeline, audio player (per-track mute, follow-along),
   full-text search, local LLM summaries (TL;DR / decisions / action items).
 - **Privacy** — recordings live in Application Support; audio auto-deletes after
